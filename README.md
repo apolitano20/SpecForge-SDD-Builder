@@ -91,7 +91,10 @@ architect_model: gemini-2.0-flash    # Architect LLM
 reviewer_model: claude-sonnet-4-6    # Reviewer LLM
 max_iterations: 15                   # Max debate rounds (cost guard)
 output_path: ./output/spec.md        # Output file path
+guidance_path: ./SDD Agent Guidance.md  # Architectural guidelines (optional)
 ```
+
+The `guidance_path` enables architectural best-practice guidelines that are injected into both agent prompts. The guidelines cover orchestration patterns, state management, failure handling, observability, and more — applied selectively based on relevance to the project being designed. Remove the key or set it to empty to disable.
 
 ## Project Structure
 
@@ -104,6 +107,7 @@ ard/
     app.py             # Streamlit UI
   utils/
     formatter.py       # Converts final JSON to Markdown spec.md
+    guidance.py        # Architectural guidelines for prompt injection
     validator.py       # Input validation
   config.py            # Config loader (config.yaml + .env)
   config.yaml          # Runtime configuration
@@ -111,6 +115,14 @@ ard/
   main.py              # CLI entry point
   state.py             # ARDState TypedDict
 ```
+
+## Tests
+
+```bash
+pytest tests/ -v
+```
+
+89 tests covering validation logic, graph routing, markdown formatting, guidance loading, and integration tests with mocked LLMs. No API keys required.
 
 ## Example Output
 
