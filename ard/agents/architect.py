@@ -14,6 +14,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from ard.config import get_config
 from ard.state import ARDState
+from ard.utils.guidance import load_guidance
 
 VALID_TYPES = {"Subsystem", "DataStore", "Agent", "API", "UIComponent", "Utility"}
 REQUIRED_COMPONENT_FIELDS = {"name", "type", "purpose"}
@@ -225,8 +226,21 @@ def architect_node(state: ARDState) -> dict:
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
 
     user_prompt = _build_user_prompt(state, llm=llm)
+
+    system_content = SYSTEM_PROMPT
+    guidance = load_guidance()
+    if guidance:
+        system_content += (
+            "\n\n## Architectural Design Guidelines\n"
+            "Consider the following best-practice guidelines WHERE APPLICABLE to the "
+            "project being designed. Not all guidelines are relevant to every project — "
+            "use your judgment to decide which patterns make sense for the specific system "
+            "described in the rough idea. Do not force-fit patterns that don't apply.\n\n"
+            f"{guidance}"
+        )
+
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_content},
         {"role": "user", "content": user_prompt},
     ]
 

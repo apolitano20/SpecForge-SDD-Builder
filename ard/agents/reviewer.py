@@ -21,6 +21,7 @@ from langchain_anthropic import ChatAnthropic
 
 from ard.config import get_config
 from ard.state import ARDState
+from ard.utils.guidance import load_guidance
 
 VALID_STATUSES = {"verified", "needs_revision"}
 VALID_CATEGORIES = {"completeness", "consistency", "ambiguity"}
@@ -145,12 +146,25 @@ def reviewer_node(state: ARDState) -> dict:
 
     llm = ChatAnthropic(model=model_name, temperature=0)
 
+    system_content = SYSTEM_PROMPT
+    guidance = load_guidance()
+    if guidance:
+        system_content += (
+            "\n\n## Architectural Design Guidelines (Reference)\n"
+            "The Architect has access to the following best-practice guidelines. When "
+            "evaluating the draft, check whether the Architect considered relevant guidelines "
+            "from this framework. Only flag missing patterns as issues if they are clearly "
+            "applicable to the project being designed — do not penalize the Architect for "
+            "omitting guidelines that don't fit the use case.\n\n"
+            f"{guidance}"
+        )
+
     user_prompt = (
         f"## Original Rough Idea\n{state['rough_idea']}\n\n"
         f"## Current SDD Draft\n```json\n{state['current_draft']}\n```"
     )
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_content},
         {"role": "user", "content": user_prompt},
     ]
 
