@@ -1,35 +1,10 @@
-"""Tests for Architect agent helpers: _strip_fences, _validate_response, _build_user_prompt."""
+"""Tests for Architect agent helpers: _validate_response, _build_user_prompt."""
 
 import json
 
 import pytest
-from unittest.mock import patch, MagicMock
 
 from ard.agents.architect import _validate_response, _build_user_prompt
-from ard.utils.parsing import strip_fences
-
-
-# --- _strip_fences ---
-
-class TestStripFences:
-    def test_strip_json_fences(self):
-        text = '```json\n{"key": "value"}\n```'
-        assert strip_fences(text) == '{"key": "value"}'
-
-    def test_strip_plain_fences(self):
-        text = '```\n{"key": "value"}\n```'
-        assert strip_fences(text) == '{"key": "value"}'
-
-    def test_no_fences_returns_stripped(self):
-        text = '  {"key": "value"}  '
-        assert strip_fences(text) == '{"key": "value"}'
-
-    def test_fences_with_extra_whitespace(self):
-        text = '```json\n\n  {"key": "value"}  \n\n```'
-        assert strip_fences(text).startswith("{")
-
-
-# --- _validate_response ---
 
 class TestValidateResponse:
     def test_valid_full_response_passes(self, valid_architect_response):
@@ -123,28 +98,22 @@ class TestBuildUserPrompt:
         result = _build_user_prompt(base_state)
         assert "## Rough Idea" in result
         assert base_state["rough_idea"] in result
-        assert "Challenge History" not in result
+        assert "Reviewer Feedback" not in result
 
-    def test_prompt_with_challenge_history(self, base_state):
+    def test_prompt_includes_only_latest_round(self, base_state):
+        base_state["challenge_history"] = [
+            {"status": "needs_revision", "challenges": [{"id": 1, "description": "old issue"}]},
+            {"status": "needs_revision", "challenges": [{"id": 1, "description": "current issue"}]},
+        ]
+        result = _build_user_prompt(base_state)
+        assert "## Reviewer Feedback (Current Round)" in result
+        assert "current issue" in result
+        assert "old issue" not in result
+
+    def test_prompt_with_single_round(self, base_state):
         base_state["challenge_history"] = [
             {"status": "needs_revision", "challenges": [{"id": 1, "description": "fix it"}]}
         ]
         result = _build_user_prompt(base_state)
-        assert "## Challenge History" in result
-        assert "Round 1" in result
-
-    def test_prompt_with_summary_entry(self, base_state):
-        base_state["challenge_history"] = [
-            {"summary": True, "content": "Earlier rounds had issues with X."},
-            {"status": "needs_revision", "challenges": []},
-        ]
-        result = _build_user_prompt(base_state)
-        assert "Summary of Earlier Rounds" in result
-
-    @patch("ard.agents.architect._maybe_summarize_history")
-    def test_prompt_calls_summarize_when_llm_provided(self, mock_summarize, base_state):
-        base_state["challenge_history"] = [{"status": "needs_revision", "challenges": []}]
-        mock_summarize.return_value = base_state["challenge_history"]
-        fake_llm = MagicMock()
-        _build_user_prompt(base_state, llm=fake_llm)
-        mock_summarize.assert_called_once()
+        assert "## Reviewer Feedback (Current Round)" in result
+        assert "fix it" in result

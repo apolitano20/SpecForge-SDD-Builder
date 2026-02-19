@@ -7,13 +7,21 @@ from ard.config import get_config
 from ard.state import ARDState
 
 
-def _render_markdown(data: dict) -> str:
+def _render_markdown(data: dict, rough_idea: str = "") -> str:
     """Convert the Architect's JSON draft into a Markdown Software Design Document."""
     lines = []
 
     project_name = data.get("project_name", "Untitled Project")
     lines.append(f"# {project_name} — Software Design Document")
     lines.append("")
+
+    # Project Overview — prefer Architect's polished description, fall back to rough idea
+    overview = data.get("project_description") or rough_idea
+    if overview:
+        lines.append("## Project Overview")
+        lines.append("")
+        lines.append(overview)
+        lines.append("")
 
     # Tech Stack
     tech_stack = data.get("tech_stack", [])
@@ -72,10 +80,23 @@ def _render_markdown(data: dict) -> str:
         lines.append("")
         for model in data_models:
             model_name = model.get("name", "Unknown")
-            fields = model.get("fields", [])
+            purpose = model.get("purpose", "")
+            key_fields = model.get("key_fields", [])
+            fields = model.get("fields", [])  # legacy format
+
             lines.append(f"### {model_name}")
             lines.append("")
-            if fields:
+            if purpose:
+                lines.append(purpose)
+                lines.append("")
+            if key_fields:
+                lines.append("**Key fields:**")
+                lines.append("")
+                for kf in key_fields:
+                    lines.append(f"- {kf}")
+                lines.append("")
+            elif fields:
+                # Legacy format fallback (full field table)
                 lines.append("| Field | Type | Description |")
                 lines.append("|-------|------|-------------|")
                 for field in fields:
@@ -153,7 +174,7 @@ def write_spec(state: ARDState) -> Path:
     # Parse the JSON draft and render as Markdown
     try:
         data = json.loads(state["current_draft"])
-        content = _render_markdown(data)
+        content = _render_markdown(data, rough_idea=state.get("rough_idea", ""))
     except (json.JSONDecodeError, TypeError):
         # Fallback: write raw content if JSON parsing fails
         content = f"# Software Design Document\n\n```json\n{state['current_draft']}\n```\n"

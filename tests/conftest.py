@@ -18,7 +18,7 @@ def base_state():
 
 @pytest.fixture
 def valid_architect_response():
-    """Complete valid Architect JSON response dict."""
+    """Complete valid Architect JSON response dict (new high-level format)."""
     return {
         "project_name": "todo-api",
         "tech_stack": ["Python 3.12", "FastAPI"],
@@ -35,9 +35,10 @@ def valid_architect_response():
         "data_models": [
             {
                 "name": "Task",
-                "fields": [
-                    {"name": "id", "type": "int", "description": "Primary key"},
-                    {"name": "title", "type": "str", "description": "Task title"},
+                "purpose": "Represents a single to-do item owned by a user",
+                "key_fields": [
+                    "user_id: FK:User.id",
+                    "status: enum(pending, done)",
                 ],
             }
         ],
@@ -45,11 +46,7 @@ def valid_architect_response():
             {
                 "method": "GET",
                 "path": "/api/tasks",
-                "description": "List all tasks",
-                "request_body": None,
-                "query_params": '{"status": "str"}',
-                "response": '{"tasks": [{"id": "int", "title": "str"}]}',
-                "errors": "401: Unauthorized",
+                "description": "List all tasks — handled by TaskService",
             }
         ],
         "key_decisions": ["Chose FastAPI for async support"],

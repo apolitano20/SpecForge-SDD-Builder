@@ -69,13 +69,29 @@ class TestArchitectNode:
     @patch("ard.agents.architect.load_guidance", return_value="")
     @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
     @patch("ard.agents.architect.ChatGoogleGenerativeAI")
-    def test_raises_after_two_failures(self, MockLLM, _gc, _guid, base_state):
+    def test_raises_after_two_failures_no_previous_draft(self, MockLLM, _gc, _guid, base_state):
+        """With no previous draft, two failures should raise."""
         mock_instance = MagicMock()
         mock_instance.invoke.return_value = _mock_llm_response("not json")
         MockLLM.return_value = mock_instance
 
         with pytest.raises(json.JSONDecodeError):
             architect_node(base_state)
+
+    @patch("ard.agents.architect.load_guidance", return_value="")
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
+    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
+    def test_falls_back_to_previous_draft_on_two_failures(self, MockLLM, _gc, _guid, base_state, valid_architect_response):
+        """With a previous draft, two failures should fall back instead of crashing."""
+        base_state["current_draft"] = json.dumps(valid_architect_response)
+        mock_instance = MagicMock()
+        mock_instance.invoke.return_value = _mock_llm_response("")
+        MockLLM.return_value = mock_instance
+
+        result = architect_node(base_state)
+
+        assert result["current_draft"] == base_state["current_draft"]
+        assert mock_instance.invoke.call_count == 2
 
 
 # --- reviewer_node ---

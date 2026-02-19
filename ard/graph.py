@@ -6,22 +6,30 @@ from ard.agents.architect import architect_node
 from ard.agents.reviewer import reviewer_node
 from ard.config import get_config
 from ard.state import ARDState
+from ard.utils.buildability import check_buildability
 
 
 def _route_after_review(state: ARDState) -> str:
     """Conditional edge: decide next step after the Reviewer node.
 
-    - status == "verified"        → end
-    - iteration == max_iterations → end (timeout)
-    - otherwise                   → back to architect
+    Priority order:
+    1. verified + buildable → end (minors are recorded as notes, not iterated on)
+    2. verified + unbuildable + iterations left → architect (fix structural issues)
+    3. iteration >= max_iterations → timeout
+    4. needs_revision + iterations left → architect
     """
-    if state["status"] == "verified":
-        return "end"
-
     config = get_config()
-    max_iterations = config["max_iterations"]
 
-    if state["iteration"] >= max_iterations:
+    if state["status"] == "verified":
+        buildability_issues = check_buildability(state.get("current_draft", ""))
+        if not buildability_issues:
+            return "end"
+        # Structurally unsound — keep iterating if possible
+        if state["iteration"] >= config["max_iterations"]:
+            return "timeout"
+        return "architect"
+
+    if state["iteration"] >= config["max_iterations"]:
         return "timeout"
 
     return "architect"

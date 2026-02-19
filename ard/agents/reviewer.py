@@ -21,7 +21,7 @@ from langchain_anthropic import ChatAnthropic
 from ard.config import get_config
 from ard.state import ARDState
 from ard.utils.guidance import load_guidance
-from ard.utils.parsing import strip_fences
+from ard.utils.parsing import strip_fences, invoke_with_retry
 
 VALID_STATUSES = {"verified", "needs_revision"}
 VALID_CATEGORIES = {"completeness", "consistency", "ambiguity"}
@@ -30,13 +30,16 @@ VALID_SEVERITIES = {"critical", "minor"}
 SYSTEM_PROMPT = """\
 You are the Reviewer agent in an Architect-Reviewer Debate system.
 
-Your job is to stress-test the Architect's current SDD draft and return structured feedback.
+Your job is to evaluate the Architect's SDD draft at the ARCHITECTURAL level and return \
+structured feedback. This SDD will be consumed by an AI coding agent (Claude Code) that is \
+highly capable of inferring implementation details — your job is to ensure the architecture \
+is sound, NOT to check every field or endpoint.
 
 The SDD draft is a JSON object with these sections:
-- project_name, tech_stack, directory_structure
+- project_name, project_description, tech_stack, directory_structure
 - components (each with name, type, purpose, file_path, dependencies)
-- data_models (each with name and fields)
-- api_endpoints (each with method, path, description, request_body, query_params, response)
+- data_models (each with name, purpose, and key design-choice fields)
+- api_endpoints (each with method, path, and description)
 - design_rationale
 
 You MUST respond with valid JSON matching this exact schema:
@@ -53,31 +56,35 @@ You MUST respond with valid JSON matching this exact schema:
 }
 
 Severity definitions:
-- "critical": The design cannot be built as-is. Missing core components, broken dependencies, \
-undefined data models for key entities, missing API routes for primary features, or \
-fundamental architectural flaws. These MUST be fixed.
-- "minor": Nice-to-have improvements, stylistic suggestions, edge cases, optional optimizations, \
-or non-essential missing details. The design is buildable without fixing these.
+- "critical": A fundamental architectural flaw that would prevent a competent AI coding agent \
+from building the system. Examples: a major feature from the rough idea has NO corresponding \
+component or data model at all; circular dependencies between components; a component depends \
+on another component that does not exist; tech stack lists a technology that no component uses \
+(incoherent stack); the system is missing an entire layer (e.g., no API layer, no data layer).
+- "minor": Suggestions that improve the design but are NOT blockers. The coding agent can \
+infer the correct implementation from context. Examples: missing individual fields on a \
+data model; missing secondary API endpoints; file path mismatches; optimization suggestions; \
+stylistic preferences.
+
+IMPORTANT — the following are NEVER critical (mark as minor at most):
+- A data model missing specific fields (the coding agent adds fields based on context)
+- An API endpoint missing request/response shapes (the coding agent infers these)
+- A file not appearing in directory_structure (the coding agent creates files as needed)
+- Incomplete CRUD operations (if core endpoints exist, the coding agent adds the rest)
+- Field type choices (str vs dict vs JSONB — the coding agent picks appropriate types)
+- Missing error codes or query parameters on endpoints
 
 Evaluation protocol:
-- Completeness: Cross-reference draft entities against the rough idea. Are all core features \
-covered? Are data_models defined for key persistent entities? Are api_endpoints defined \
-for primary routes? Does directory_structure match file_path values? Is tech_stack specific? \
-Does the directory_structure include application entry points (e.g., main.py, App.jsx, index.jsx)?
-- Consistency: Check if component A depends on component B that is not defined. Check if \
-api_endpoints reference data_models that don't exist. Check if file_paths are consistent \
-with directory_structure. Check for circular dependencies — if A depends on B, B must NOT \
-depend on A (flag as critical).
-- Ambiguity: Flag components with vague type or purpose (e.g., "Process data", "Module"). \
-Flag missing field types in data_models. Flag endpoints with unclear request/response shapes. \
-Flag GET endpoints that mention filtering or time ranges but have no query_params defined.
-
-Common critical issues to check (flag as critical if found):
-- Circular dependencies between components.
-- Redundant data models that duplicate data already stored in an external system (e.g., an \
-Embedding SQL table when ChromaDB already stores embeddings — use a reference ID instead).
-- Incomplete CRUD: if PUT/DELETE endpoints exist for a resource, GET-by-ID must also exist.
-- Structured fields (e.g., configuration objects) typed as "str" instead of "dict"/"JSONB".
+- Completeness: Does every major feature from the rough idea map to at least one component \
+AND at least one API endpoint (if the feature is user-facing)? Are the key persistent \
+entities identified as data_models? Is the tech stack specific and coherent (every listed \
+technology has a clear role in the architecture)?
+- Consistency: Does every component dependency reference a component that exists in the \
+components list? Are there circular dependencies? Does the tech stack match the components \
+(e.g., if Celery is listed, is there a task runner component that uses it)?
+- Ambiguity: Are component purposes clear enough that a developer knows what to build? \
+Are data model purposes clear enough to understand each entity's role? Is the data flow \
+between components traceable for each core feature?
 
 Rules:
 - Set status to "verified" if there are NO critical challenges (minor-only or none is fine).
@@ -160,7 +167,7 @@ def reviewer_node(state: ARDState) -> dict:
         {"role": "user", "content": user_prompt},
     ]
 
-    response = llm.invoke(messages)
+    response = invoke_with_retry(llm, messages)
     content = strip_fences(response.content)
     data = json.loads(content)
     _validate_response(data)

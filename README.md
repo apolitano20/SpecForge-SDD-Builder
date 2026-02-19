@@ -89,9 +89,11 @@ Edit `ard/config.yaml` to adjust:
 ```yaml
 architect_model: gemini-2.0-flash    # Architect LLM
 reviewer_model: claude-sonnet-4-6    # Reviewer LLM
-max_iterations: 15                   # Max debate rounds (cost guard)
+max_iterations: 10                   # Max debate rounds (cost guard)
 output_path: ./output/spec.md        # Output file path
-guidance_enabled: true                  # Inject architectural guidelines into agent prompts
+guidance_enabled: true               # Inject architectural guidelines into agent prompts
+llm_max_retries: 3                   # Retry count for transient API errors (429, 500, etc.)
+max_minor_concerns: 5                # Keep iterating until minors ≤ this threshold
 ```
 
 `guidance_enabled` activates architectural best-practice guidelines that are injected into both agent prompts. The guidelines cover orchestration patterns, state management, failure handling, observability, and more — applied selectively based on relevance to the project being designed. Set to `false` or remove to disable.
@@ -108,7 +110,8 @@ ard/
   utils/
     formatter.py       # Converts final JSON to Markdown spec.md
     guidance.py        # Architectural guidelines for prompt injection
-    parsing.py         # Shared parsing utilities (e.g., strip_fences)
+    buildability.py    # Deterministic structural validation of draft
+    parsing.py         # Shared parsing & retry utilities (strip_fences, invoke_with_retry)
     validator.py       # Input validation
   config.py            # Config loader (config.yaml + .env)
   config.yaml          # Runtime configuration
@@ -118,10 +121,12 @@ ard/
 tests/
   conftest.py          # Shared fixtures
   test_architect_validation.py
+  test_buildability.py
   test_formatter.py
   test_graph_routing.py
   test_guidance.py
   test_integration.py
+  test_parsing.py
   test_reviewer_validation.py
   test_validator.py
 ```
@@ -132,12 +137,13 @@ tests/
 pytest tests/ -v
 ```
 
-86 tests covering validation logic, graph routing, markdown formatting, guidance loading, and integration tests with mocked LLMs. No API keys required.
+111 tests covering validation logic, graph routing, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
 
 ## Example Output
 
 The generated `spec.md` includes:
 
+- **Project Overview** — the original rough idea for context
 - **Tech Stack** — specific versions and frameworks
 - **Key Design Decisions** — architectural choices with rationale
 - **Directory Structure** — full project tree with entry points
