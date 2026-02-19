@@ -19,7 +19,12 @@ python -m ard.main "Your rough idea here"
 streamlit run ard/dashboard/app.py
 ```
 
-No test framework is configured yet. No linter is configured yet.
+```bash
+# Run tests
+pytest tests/ -v
+```
+
+No linter is configured yet.
 
 ## Architecture
 

@@ -87,7 +87,7 @@ def mock_config():
         "reviewer_model": "claude-sonnet-4-6",
         "max_iterations": 15,
         "output_path": "./output/spec.md",
-        "guidance_path": "./SDD Agent Guidance.md",
+        "guidance_enabled": True,
     }
     with patch("ard.config._config", test_config):
         yield test_config

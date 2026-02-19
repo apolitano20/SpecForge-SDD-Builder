@@ -33,12 +33,12 @@ def load_guidance() -> str:
 
     Returns the condensed checklist for prompt injection.
     Returns an empty string if guidance is disabled in config
-    (set guidance_path to empty or remove it).
+    (set guidance_enabled to false or remove it).
     """
     from ard.config import get_config
 
     config = get_config()
-    if not config.get("guidance_path"):
+    if not config.get("guidance_enabled", False):
         return ""
 
     return _GUIDANCE_RULES

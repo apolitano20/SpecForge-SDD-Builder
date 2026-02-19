@@ -8,13 +8,13 @@ working field for the debate loop, excluded from final output).
 """
 
 import json
-import re
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from ard.config import get_config
 from ard.state import ARDState
 from ard.utils.guidance import load_guidance
+from ard.utils.parsing import strip_fences
 
 VALID_TYPES = {"Subsystem", "DataStore", "Agent", "API", "UIComponent", "Utility"}
 REQUIRED_COMPONENT_FIELDS = {"name", "type", "purpose"}
@@ -45,14 +45,6 @@ _TYPE_ALIASES = {
     "client": "Subsystem",
     "factory": "Utility",
 }
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
-
-
-def _strip_fences(text: str) -> str:
-    """Strip markdown code fences from LLM output if present."""
-    match = _FENCE_RE.search(text)
-    return match.group(1).strip() if match else text.strip()
 
 # Context overflow thresholds (§6)
 CONTEXT_CHAR_LIMIT = 200_000
@@ -246,7 +238,7 @@ def architect_node(state: ARDState) -> dict:
 
     # First attempt
     response = llm.invoke(messages)
-    content = _strip_fences(response.content)
+    content = strip_fences(response.content)
 
     try:
         data = json.loads(content)
@@ -263,7 +255,7 @@ def architect_node(state: ARDState) -> dict:
             ),
         })
         response = llm.invoke(messages)
-        content = _strip_fences(response.content)
+        content = strip_fences(response.content)
         data = json.loads(content)
         _validate_response(data)
 

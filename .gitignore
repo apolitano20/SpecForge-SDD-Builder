@@ -16,3 +16,4 @@ ard/output/spec.md
 *.swp
 *.swo
 *~
+.pytest_cache/

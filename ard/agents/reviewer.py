@@ -15,25 +15,17 @@ Required output schema (§4.2):
 """
 
 import json
-import re
 
 from langchain_anthropic import ChatAnthropic
 
 from ard.config import get_config
 from ard.state import ARDState
 from ard.utils.guidance import load_guidance
+from ard.utils.parsing import strip_fences
 
 VALID_STATUSES = {"verified", "needs_revision"}
 VALID_CATEGORIES = {"completeness", "consistency", "ambiguity"}
 VALID_SEVERITIES = {"critical", "minor"}
-
-_FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
-
-
-def _strip_fences(text: str) -> str:
-    """Strip markdown code fences from LLM output if present."""
-    match = _FENCE_RE.search(text)
-    return match.group(1).strip() if match else text.strip()
 
 SYSTEM_PROMPT = """\
 You are the Reviewer agent in an Architect-Reviewer Debate system.
@@ -169,7 +161,7 @@ def reviewer_node(state: ARDState) -> dict:
     ]
 
     response = llm.invoke(messages)
-    content = _strip_fences(response.content)
+    content = strip_fences(response.content)
     data = json.loads(content)
     _validate_response(data)
 

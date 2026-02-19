@@ -1,27 +1,8 @@
-"""Tests for Reviewer agent helpers: _strip_fences, _validate_response."""
+"""Tests for Reviewer agent helpers: _validate_response."""
 
 import pytest
 
-from ard.agents.reviewer import _strip_fences, _validate_response
-
-
-# --- _strip_fences (duplicated in reviewer.py) ---
-
-class TestStripFences:
-    def test_strip_json_fences(self):
-        text = '```json\n{"status": "verified"}\n```'
-        assert _strip_fences(text) == '{"status": "verified"}'
-
-    def test_strip_plain_fences(self):
-        text = '```\n{"status": "verified"}\n```'
-        assert _strip_fences(text) == '{"status": "verified"}'
-
-    def test_no_fences_returns_stripped(self):
-        text = '  {"status": "verified"}  '
-        assert _strip_fences(text) == '{"status": "verified"}'
-
-
-# --- _validate_response ---
+from ard.agents.reviewer import _validate_response
 
 class TestValidateResponse:
     def test_verified_no_challenges_passes(self):

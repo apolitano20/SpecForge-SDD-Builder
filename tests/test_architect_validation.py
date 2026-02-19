@@ -5,7 +5,8 @@ import json
 import pytest
 from unittest.mock import patch, MagicMock
 
-from ard.agents.architect import _strip_fences, _validate_response, _build_user_prompt
+from ard.agents.architect import _validate_response, _build_user_prompt
+from ard.utils.parsing import strip_fences
 
 
 # --- _strip_fences ---
@@ -13,19 +14,19 @@ from ard.agents.architect import _strip_fences, _validate_response, _build_user_
 class TestStripFences:
     def test_strip_json_fences(self):
         text = '```json\n{"key": "value"}\n```'
-        assert _strip_fences(text) == '{"key": "value"}'
+        assert strip_fences(text) == '{"key": "value"}'
 
     def test_strip_plain_fences(self):
         text = '```\n{"key": "value"}\n```'
-        assert _strip_fences(text) == '{"key": "value"}'
+        assert strip_fences(text) == '{"key": "value"}'
 
     def test_no_fences_returns_stripped(self):
         text = '  {"key": "value"}  '
-        assert _strip_fences(text) == '{"key": "value"}'
+        assert strip_fences(text) == '{"key": "value"}'
 
     def test_fences_with_extra_whitespace(self):
         text = '```json\n\n  {"key": "value"}  \n\n```'
-        assert _strip_fences(text).startswith("{")
+        assert strip_fences(text).startswith("{")
 
 
 # --- _validate_response ---
