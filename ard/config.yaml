@@ -4,3 +4,4 @@ max_iterations: 10                       # Loop ceiling (cost guard)
 output_path: ./output/spec.md           # Final output destination
 guidance_enabled: true                  # Inject architectural guidelines into agent prompts
 llm_max_retries: 3                      # Retry count for transient API errors (429, 500, etc.)
+hitl_enabled: true                     # Pause on critical ambiguity for user input

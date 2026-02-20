@@ -9,3 +9,4 @@ class ARDState(TypedDict):
     challenge_history: list[dict]  # All Reviewer responses, in order.
     iteration: int  # Current loop count. Starts at 0.
     status: Literal["in_progress", "verified", "max_iterations_reached"]
+    user_clarifications: list[dict]  # User decisions on ambiguity challenges (HITL).

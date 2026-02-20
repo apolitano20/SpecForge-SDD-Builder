@@ -72,3 +72,47 @@ workflow.add_edge("timeout", END)
 workflow.add_edge("increment", "architect")
 
 graph = workflow.compile()
+
+
+# --- Step-execution helpers for HITL manual loop ---
+
+_NODE_FNS = {
+    "architect": architect_node,
+    "reviewer": reviewer_node,
+    "increment": _increment_iteration,
+    "timeout": _set_timeout,
+}
+
+
+def run_single_step(state: ARDState, node_name: str) -> ARDState:
+    """Run a single node and return the updated state.
+
+    Used by the dashboard/CLI for manual step-by-step execution with HITL.
+    """
+    node_fn = _NODE_FNS[node_name]
+    updates = node_fn(state)
+    return {**state, **updates}
+
+
+def should_pause_for_hitl(state: ARDState) -> list[dict]:
+    """Return critical ambiguity challenges from the latest review round.
+
+    Returns an empty list if there are no critical ambiguity challenges
+    or if the review status is already 'verified'.
+    """
+    if not state["challenge_history"]:
+        return []
+
+    latest = state["challenge_history"][-1]
+    if latest.get("status") == "verified":
+        return []
+
+    return [
+        c for c in latest.get("challenges", [])
+        if c.get("category") == "ambiguity" and c.get("severity") == "critical"
+    ]
+
+
+def route_after_review(state: ARDState) -> str:
+    """Public wrapper around _route_after_review for manual loop usage."""
+    return _route_after_review(state)

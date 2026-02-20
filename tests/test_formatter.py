@@ -170,8 +170,8 @@ class TestWriteSpec:
         output_file = tmp_path / "spec.md"
         mock_gc.return_value = {"output_path": str(output_file)}
         state = self._make_state(tmp_path, valid_architect_response)
-        write_spec(state)
-        content = output_file.read_text(encoding="utf-8")
+        result = write_spec(state)
+        content = result.read_text(encoding="utf-8")
         assert "# todo-api" in content
         assert "## Tech Stack" in content
 
@@ -180,8 +180,8 @@ class TestWriteSpec:
         output_file = tmp_path / "spec.md"
         mock_gc.return_value = {"output_path": str(output_file)}
         state = self._make_state(tmp_path, valid_architect_response)
-        write_spec(state)
-        content = output_file.read_text(encoding="utf-8")
+        result = write_spec(state)
+        content = result.read_text(encoding="utf-8")
         assert "## Project Overview" in content
         assert "Build a todo API" in content
 
@@ -191,8 +191,8 @@ class TestWriteSpec:
         mock_gc.return_value = {"output_path": str(output_file)}
         challenges = [{"id": 1, "severity": "critical", "category": "completeness", "description": "missing model"}]
         state = self._make_state(tmp_path, valid_architect_response, status="max_iterations_reached", challenges=challenges)
-        write_spec(state)
-        content = output_file.read_text(encoding="utf-8")
+        result = write_spec(state)
+        content = result.read_text(encoding="utf-8")
         assert "ARD Trace Log" in content
         assert "missing model" in content
 
@@ -202,8 +202,8 @@ class TestWriteSpec:
         mock_gc.return_value = {"output_path": str(output_file)}
         challenges = [{"id": 1, "severity": "minor", "category": "ambiguity", "description": "vague purpose"}]
         state = self._make_state(tmp_path, valid_architect_response, status="verified", challenges=challenges)
-        write_spec(state)
-        content = output_file.read_text(encoding="utf-8")
+        result = write_spec(state)
+        content = result.read_text(encoding="utf-8")
         assert "Reviewer Notes (Minor)" in content
         assert "vague purpose" in content
 
@@ -212,8 +212,8 @@ class TestWriteSpec:
         output_file = tmp_path / "spec.md"
         mock_gc.return_value = {"output_path": str(output_file)}
         state = self._make_state(tmp_path, valid_architect_response)
-        write_spec(state)
-        content = output_file.read_text(encoding="utf-8")
+        result = write_spec(state)
+        content = result.read_text(encoding="utf-8")
         assert "Trace Log" not in content
         assert "Reviewer Notes" not in content
 
@@ -228,8 +228,8 @@ class TestWriteSpec:
             "iteration": 1,
             "status": "verified",
         }
-        write_spec(state)
-        content = output_file.read_text(encoding="utf-8")
+        result = write_spec(state)
+        content = result.read_text(encoding="utf-8")
         assert "not valid json" in content
 
     @patch("ard.utils.formatter.get_config")

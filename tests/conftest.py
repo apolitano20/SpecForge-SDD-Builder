@@ -13,6 +13,7 @@ def base_state():
         "challenge_history": [],
         "iteration": 0,
         "status": "in_progress",
+        "user_clarifications": [],
     }
 
 

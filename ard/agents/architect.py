@@ -103,6 +103,9 @@ list every single file — just enough to convey the organization pattern.
 - key_decisions: 3-8 bullet points capturing the most important architectural choices and WHY \
 they were made. Rewrite from scratch each iteration to reflect the current design state.
 - design_rationale must reference each challenge from the most recent reviewer response by index.
+- If the user has provided clarifications (in the "User Clarifications" section), treat them as \
+authoritative design decisions. Address them in your design_rationale and ensure the draft \
+reflects the user's stated preference. Never override a user clarification.
 - Respond ONLY with the JSON object. No markdown fences, no commentary.
 
 Architectural rules:
@@ -129,6 +132,20 @@ def _build_user_prompt(state: ARDState) -> str:
             f"\n## Reviewer Feedback (Current Round)\n"
             f"```json\n{json.dumps(latest, indent=2)}\n```"
         )
+
+    # Include user clarifications if any (HITL decisions)
+    clarifications = state.get("user_clarifications", [])
+    if clarifications:
+        parts.append("\n## User Clarifications")
+        parts.append(
+            "The following design decisions have been explicitly made by the user. "
+            "You MUST incorporate these choices into your design — do not override them."
+        )
+        for c in clarifications:
+            cid = c.get("challenge_id", "?")
+            desc = c.get("challenge_description", "")
+            response = c.get("user_response", "")
+            parts.append(f"\n- Challenge #{cid} ({desc}): **{response}**")
 
     return "\n".join(parts)
 

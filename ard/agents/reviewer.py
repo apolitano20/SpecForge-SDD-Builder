@@ -15,6 +15,7 @@ Required output schema (§4.2):
 """
 
 import json
+import sys
 
 from langchain_anthropic import ChatAnthropic
 
@@ -26,6 +27,7 @@ from ard.utils.parsing import strip_fences, invoke_with_retry
 VALID_STATUSES = {"verified", "needs_revision"}
 VALID_CATEGORIES = {"completeness", "consistency", "ambiguity"}
 VALID_SEVERITIES = {"critical", "minor"}
+REQUIRED_ALTERNATIVE_FIELDS = {"label", "description", "recommended"}
 
 SYSTEM_PROMPT = """\
 You are the Reviewer agent in an Architect-Reviewer Debate system.
@@ -50,7 +52,14 @@ You MUST respond with valid JSON matching this exact schema:
       "id": integer (1-indexed),
       "severity": "critical" or "minor",
       "category": "completeness" or "consistency" or "ambiguity",
-      "description": "string describing the issue"
+      "description": "string describing the issue",
+      "alternatives": [  // ONLY when category is "ambiguity" AND severity is "critical"
+        {
+          "label": "short option name",
+          "description": "trade-off explanation",
+          "recommended": true or false  // exactly one must be true
+        }
+      ]
     }
   ]
 }
@@ -85,6 +94,26 @@ components list? Are there circular dependencies? Does the tech stack match the 
 - Ambiguity: Are component purposes clear enough that a developer knows what to build? \
 Are data model purposes clear enough to understand each entity's role? Is the data flow \
 between components traceable for each core feature?
+
+When category is "ambiguity" AND severity is "critical", you MUST also include an "alternatives" \
+field: an array of 2-4 design options the user can choose from. Each alternative has:
+- "label": short name (3-6 words, e.g., "Real-time sync for all users")
+- "description": 1-2 sentence explanation of the trade-off
+- "recommended": boolean (exactly one must be true — your best recommendation)
+
+Alternatives must describe BEHAVIORAL or FUNCTIONAL design choices — how the system should \
+behave or what it should do. Examples of GOOD alternatives:
+- "Should users receive notifications immediately or in daily digests?"
+- "Should the matching algorithm prioritize precision or recall?"
+- "Should the system support multi-tenancy or single-tenant deployments?"
+
+Do NOT propose implementation-detail alternatives like:
+- "Use PostgreSQL vs MySQL" (technology choice)
+- "Use Redis vs Memcached for caching" (package choice)
+- "Use REST vs GraphQL" (protocol choice)
+
+Only include "alternatives" for critical ambiguity challenges. Do NOT include it for \
+completeness, consistency, or minor-severity challenges.
 
 Rules:
 - Set status to "verified" if there are NO critical challenges (minor-only or none is fine).
@@ -127,6 +156,40 @@ def _validate_response(data: dict) -> None:
             )
         if challenge["severity"] == "critical":
             has_critical = True
+
+        # Validate alternatives on critical ambiguity challenges
+        if challenge["category"] == "ambiguity" and challenge["severity"] == "critical":
+            alts = challenge.get("alternatives")
+            if alts is None:
+                print(
+                    f"[ARD] Warning: critical ambiguity challenge {i} missing 'alternatives'. "
+                    f"HITL will fall back to free-text input.",
+                    file=sys.stderr,
+                )
+            elif isinstance(alts, list):
+                if len(alts) < 2 or len(alts) > 4:
+                    print(
+                        f"[ARD] Warning: challenge {i} has {len(alts)} alternatives "
+                        f"(expected 2-4). Keeping as-is.",
+                        file=sys.stderr,
+                    )
+                rec_count = 0
+                for j, alt in enumerate(alts):
+                    missing = REQUIRED_ALTERNATIVE_FIELDS - set(alt.keys())
+                    if missing:
+                        print(
+                            f"[ARD] Warning: alternative {j} in challenge {i} missing "
+                            f"fields: {missing}. Skipping validation.",
+                            file=sys.stderr,
+                        )
+                    if alt.get("recommended"):
+                        rec_count += 1
+                if rec_count != 1 and alts:
+                    print(
+                        f"[ARD] Warning: challenge {i} has {rec_count} recommended "
+                        f"alternatives (expected exactly 1).",
+                        file=sys.stderr,
+                    )
 
     # If the Reviewer said needs_revision but no challenges are critical, override to verified
     if data["status"] == "needs_revision" and not has_critical:

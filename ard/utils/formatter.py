@@ -154,6 +154,7 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
                 lines.append("")
 
     # design_rationale is intentionally excluded — it's a working field for the debate loop
+    # user_clarifications are appended separately by write_spec if present
 
     return "\n".join(lines)
 
@@ -167,9 +168,28 @@ def write_spec(state: ARDState) -> Path:
     Returns the Path to the written file.
     """
     config = get_config()
-    output_path = Path(__file__).resolve().parent.parent / config["output_path"]
+    base_path = Path(__file__).resolve().parent.parent / config["output_path"]
+    output_dir = base_path.parent
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Derive filename from project_name if available
+    try:
+        data_peek = json.loads(state["current_draft"])
+        project_name = data_peek.get("project_name", "")
+    except (json.JSONDecodeError, TypeError):
+        project_name = ""
+
+    if project_name:
+        stem = project_name  # already kebab-case from the Architect
+    else:
+        stem = base_path.stem  # fallback to config name (e.g., "spec")
+
+    # Find a non-conflicting filename
+    output_path = output_dir / f"{stem}.md"
+    counter = 1
+    while output_path.exists():
+        counter += 1
+        output_path = output_dir / f"{stem} ({counter}).md"
 
     # Parse the JSON draft and render as Markdown
     try:
@@ -193,6 +213,19 @@ def write_spec(state: ARDState) -> Path:
                 category = challenge.get("category", "unknown")
                 description = challenge.get("description", "")
                 content += f"- **[{category}]** {description}\n"
+
+    # Append user design decisions (HITL clarifications)
+    clarifications = state.get("user_clarifications", [])
+    if clarifications:
+        content += "\n---\n\n## User Design Decisions\n\n"
+        content += "The following design choices were made by the user during the review process:\n\n"
+        for c in clarifications:
+            source = "custom input" if c.get("is_free_text") else "selected option"
+            content += (
+                f"- **Challenge #{c.get('challenge_id', '?')}** "
+                f"({c.get('challenge_description', '')}): "
+                f"{c.get('user_response', '')} *({source})*\n"
+            )
 
     if state["status"] == "max_iterations_reached" and state["challenge_history"]:
         last_round = state["challenge_history"][-1]

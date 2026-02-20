@@ -2,7 +2,7 @@
 
 An AI-powered tool that transforms a rough software idea into a complete **Software Design Document (SDD)** through an iterative debate between two LLMs.
 
-An **Architect** agent (Gemini Flash) drafts the design, and a **Reviewer** agent (Claude Sonnet) stress-tests it for completeness, consistency, and ambiguity. They iterate until the Reviewer verifies the design or a max iteration limit is reached. The output is a structured `spec.md` ready to be used as a blueprint by Claude Code or any other coding agent.
+An **Architect** agent (Gemini Flash) drafts the design, and a **Reviewer** agent (Claude Sonnet) stress-tests it for completeness, consistency, and ambiguity. They iterate until the Reviewer verifies the design or a max iteration limit is reached. The output is a structured Markdown SDD (named after your project, e.g., `todo-api.md`) ready to be used as a blueprint by Claude Code or any other coding agent.
 
 ## How It Works
 
@@ -64,9 +64,10 @@ streamlit run ard/dashboard/app.py
 
 This opens a web UI where you can:
 - Enter your rough idea in a text area
+- Toggle **Human-in-the-Loop** to be asked about ambiguous design choices
 - Watch the debate unfold with per-round challenge summaries
 - Download the final `spec.md`
-- Inspect observability panels (challenge resolution log, evolution summary)
+- Inspect observability panels (challenge resolution log, user design decisions, evolution summary)
 
 ### CLI
 
@@ -80,7 +81,22 @@ Or pipe from stdin:
 echo "Build a personal finance tracker with bank integrations" | python -m ard.main
 ```
 
-Output is written to `ard/output/spec.md` (configurable in `ard/config.yaml`).
+Add `--no-hitl` to skip interactive prompts and let the Architect decide autonomously:
+
+```bash
+python -m ard.main --no-hitl "Build a todo app"
+```
+
+Output is written to `ard/output/<project-name>.md` (directory configurable in `ard/config.yaml`). If a file with the same name already exists, a numeric suffix is added (e.g., `todo-api (2).md`).
+
+### What to Do with `spec.md`
+
+Once the SDD is generated:
+
+1. Copy `spec.md` into your new project folder
+2. Open the project in your IDE with Claude Code (or another coding agent)
+3. Run `/init` to set up the project scaffolding
+4. Ask Claude to build the project based on `spec.md`
 
 ## Configuration
 
@@ -93,10 +109,11 @@ max_iterations: 10                   # Max debate rounds (cost guard)
 output_path: ./output/spec.md        # Output file path
 guidance_enabled: true               # Inject architectural guidelines into agent prompts
 llm_max_retries: 3                   # Retry count for transient API errors (429, 500, etc.)
-max_minor_concerns: 5                # Keep iterating until minors ≤ this threshold
+hitl_enabled: true                   # Pause on critical ambiguity for user input
 ```
 
-`guidance_enabled` activates architectural best-practice guidelines that are injected into both agent prompts. The guidelines cover orchestration patterns, state management, failure handling, observability, and more — applied selectively based on relevance to the project being designed. Set to `false` or remove to disable.
+- **`guidance_enabled`** activates architectural best-practice guidelines that are injected into both agent prompts. The guidelines cover orchestration patterns, state management, failure handling, observability, and more — applied selectively based on relevance to the project being designed. Set to `false` to disable.
+- **`hitl_enabled`** activates Human-in-the-Loop mode. When the Reviewer flags a critical ambiguity about a design *behavior* (not implementation details like package choices), the system pauses and presents you with 2-4 alternative design choices — one marked as Recommended — plus a free-text input. Your decision is fed back to the Architect as an authoritative constraint. The dashboard also has a toggle to enable/disable HITL per session. Use `--no-hitl` in the CLI to disable.
 
 ## Project Structure
 
@@ -128,6 +145,7 @@ tests/
   test_integration.py
   test_parsing.py
   test_reviewer_validation.py
+  test_hitl.py
   test_validator.py
 ```
 
@@ -137,7 +155,7 @@ tests/
 pytest tests/ -v
 ```
 
-111 tests covering validation logic, graph routing, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
+130 tests covering validation logic, graph routing, HITL helpers, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
 
 ## Example Output
 
@@ -151,6 +169,7 @@ The generated `spec.md` includes:
 - **Data Models** — field names, types, descriptions, and foreign keys
 - **API Endpoints** — method, path, query params, request/response JSON shapes, error codes
 - **Reviewer Notes** — minor suggestions that didn't block verification
+- **User Design Decisions** — choices made via Human-in-the-Loop during the debate (if any)
 
 ## License
 
