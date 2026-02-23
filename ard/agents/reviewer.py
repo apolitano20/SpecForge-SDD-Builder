@@ -92,7 +92,11 @@ in the context section? Are all external entities identified as external_actors?
 main data flows between actors and components documented?
 - Consistency: Does every component dependency reference a component that exists in the \
 components list? Are there circular dependencies? Does the tech stack match the components \
-(e.g., if Celery is listed, is there a task runner component that uses it)?
+(e.g., if Celery is listed, is there a task runner component that uses it)? Specifically: \
+(a) every tech stack item must be used by at least one component — flag orphan technologies \
+that appear in the stack but have no corresponding component or dependency; \
+(b) if a component's purpose implies it reads from or writes to a data store, it must \
+declare that data store as a dependency — flag implicit dependencies.
 - Ambiguity: Are component purposes clear enough that a developer knows what to build? \
 Are data model purposes clear enough to understand each entity's role? Is the data flow \
 between components traceable for each core feature?
@@ -217,6 +221,18 @@ def reviewer_node(state: ARDState) -> dict:
     llm = ChatAnthropic(model=model_name, temperature=0)
 
     system_content = SYSTEM_PROMPT
+
+    # Inject research findings if available
+    research_report = state.get("research_report", "")
+    if research_report:
+        system_content += (
+            "\n\n## Current Stack Research\n"
+            "The Architect had access to the following research findings grounded in "
+            "recent web sources. Flag any Architect design choices that contradict "
+            "these findings.\n\n"
+            f"{research_report}"
+        )
+
     guidance = load_guidance()
     if guidance:
         system_content += (

@@ -20,3 +20,4 @@ ard/output/*
 .pytest_cache/
 IEEE-1016-2019.md
 research-agent.md
+CLAUDE.md

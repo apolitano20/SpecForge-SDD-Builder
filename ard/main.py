@@ -64,15 +64,20 @@ def _collect_hitl_input(ambiguities: list[dict], iteration: int) -> list[dict]:
     return clarifications
 
 
-def run(rough_idea: str, hitl: bool | None = None) -> None:
+def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None) -> None:
     """Run the full ARD pipeline on a rough idea string.
 
     Args:
         rough_idea: The user's rough software idea.
         hitl: Override for HITL. None uses config default.
+        research: Override for research. None uses config default.
     """
     config = get_config()
     hitl_enabled = hitl if hitl is not None else config.get("hitl_enabled", True)
+
+    # Apply research override at config level so researcher_node sees it
+    if research is not None:
+        config["research_enabled"] = research
     validated = validate_input(rough_idea)
 
     state: ARDState = {
@@ -82,12 +87,16 @@ def run(rough_idea: str, hitl: bool | None = None) -> None:
         "iteration": 0,
         "status": "in_progress",
         "user_clarifications": [],
+        "research_report": "",
     }
 
     if not hitl_enabled:
         # Original behavior — fully autonomous
         final_state = graph.invoke(state)
     else:
+        # Run research stage once before the debate loop
+        state = run_single_step(state, "researcher")
+
         # Manual loop with HITL pauses
         while True:
             state = run_single_step(state, "architect")
@@ -134,11 +143,16 @@ def run(rough_idea: str, hitl: bool | None = None) -> None:
 def main() -> None:
     """CLI entry point — accepts rough idea as argument or from stdin."""
     hitl = None
+    research = None
     args = sys.argv[1:]
 
     if "--no-hitl" in args:
         hitl = False
         args.remove("--no-hitl")
+
+    if "--no-research" in args:
+        research = False
+        args.remove("--no-research")
 
     if args:
         rough_idea = " ".join(args)
@@ -146,7 +160,7 @@ def main() -> None:
         print("Enter your rough idea (Ctrl+D / Ctrl+Z to submit):")
         rough_idea = sys.stdin.read()
 
-    run(rough_idea, hitl=hitl)
+    run(rough_idea, hitl=hitl, research=research)
 
 
 if __name__ == "__main__":

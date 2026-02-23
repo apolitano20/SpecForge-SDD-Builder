@@ -14,6 +14,7 @@ def base_state():
         "iteration": 0,
         "status": "in_progress",
         "user_clarifications": [],
+        "research_report": "",
     }
 
 
@@ -110,6 +111,7 @@ def mock_config():
         "max_iterations": 15,
         "output_path": "./output/spec.md",
         "guidance_enabled": True,
+        "research_enabled": False,
     }
     with patch("ard.config._config", test_config):
         yield test_config

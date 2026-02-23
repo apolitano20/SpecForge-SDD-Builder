@@ -3,6 +3,7 @@
 from langgraph.graph import END, StateGraph
 
 from ard.agents.architect import architect_node
+from ard.agents.researcher import researcher_node
 from ard.agents.reviewer import reviewer_node
 from ard.config import get_config
 from ard.state import ARDState
@@ -49,13 +50,15 @@ def _set_timeout(state: ARDState) -> dict:
 
 workflow = StateGraph(ARDState)
 
+workflow.add_node("researcher", researcher_node)
 workflow.add_node("architect", architect_node)
 workflow.add_node("reviewer", reviewer_node)
 workflow.add_node("increment", _increment_iteration)
 workflow.add_node("timeout", _set_timeout)
 
-workflow.set_entry_point("architect")
+workflow.set_entry_point("researcher")
 
+workflow.add_edge("researcher", "architect")
 workflow.add_edge("architect", "reviewer")
 
 workflow.add_conditional_edges(
@@ -77,6 +80,7 @@ graph = workflow.compile()
 # --- Step-execution helpers for HITL manual loop ---
 
 _NODE_FNS = {
+    "researcher": researcher_node,
     "architect": architect_node,
     "reviewer": reviewer_node,
     "increment": _increment_iteration,

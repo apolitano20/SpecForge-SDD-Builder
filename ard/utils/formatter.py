@@ -253,6 +253,16 @@ def write_spec(state: ARDState) -> Path:
         # Fallback: write raw content if JSON parsing fails
         content = f"# Software Design Document\n\n```json\n{state['current_draft']}\n```\n"
 
+    # Append research grounding if research was performed
+    research_report = state.get("research_report", "")
+    if research_report:
+        content += "\n---\n\n## Research Grounding\n\n"
+        content += (
+            "The following research findings were used to inform stack decisions "
+            "in this document. Sources are grounded in recent web searches.\n\n"
+        )
+        content += research_report + "\n"
+
     # Append minor notes if the design was verified with minor suggestions
     if state["status"] == "verified" and state["challenge_history"]:
         last_round = state["challenge_history"][-1]

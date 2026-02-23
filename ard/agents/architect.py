@@ -289,6 +289,18 @@ def architect_node(state: ARDState) -> dict:
     user_prompt = _build_user_prompt(state)
 
     system_content = SYSTEM_PROMPT
+
+    # Inject research findings if available
+    research_report = state.get("research_report", "")
+    if research_report:
+        system_content += (
+            "\n\n## Current Stack Research\n"
+            "The following information is grounded in recent web sources. When there is "
+            "a conflict between this research and your training data, prefer the research "
+            "findings as they reflect more current information.\n\n"
+            f"{research_report}"
+        )
+
     guidance = load_guidance()
     if guidance:
         system_content += (

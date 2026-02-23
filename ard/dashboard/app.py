@@ -16,8 +16,8 @@ from ard.state import ARDState
 from ard.utils.formatter import write_spec
 from ard.utils.validator import validate_input
 
-st.set_page_config(page_title="Software Design Document (SDD) Builder", layout="wide")
-st.title("Software Design Document (SDD) Builder")
+st.set_page_config(page_title="SpecForge - Software Design Document (SDD) Builder", layout="wide")
+st.title("SpecForge - Software Design Document (SDD) Builder")
 st.markdown(
     "Translates a rough software idea into a comprehensive Software Design Document "
     "through an iterative debate between two LLMs — an **Architect** (Gemini) that "
@@ -33,13 +33,23 @@ rough_idea = st.text_area(
     placeholder="Describe the system you want to design...",
 )
 
-hitl_enabled = st.toggle(
-    "Human-in-the-Loop",
-    value=get_config().get("hitl_enabled", True),
-    key="hitl_toggle",
-    help="When enabled, you'll be asked to resolve ambiguous design choices. "
-    "When disabled, the Architect decides autonomously.",
-)
+col1, col2 = st.columns(2)
+with col1:
+    hitl_enabled = st.toggle(
+        "Human-in-the-Loop",
+        value=get_config().get("hitl_enabled", True),
+        key="hitl_toggle",
+        help="When enabled, you'll be asked to resolve ambiguous design choices. "
+        "When disabled, the Architect decides autonomously.",
+    )
+with col2:
+    research_enabled = st.toggle(
+        "Pre-debate Research",
+        value=get_config().get("research_enabled", False),
+        key="research_toggle",
+        help="When enabled, queries the Perplexity API before the debate to ground "
+        "stack decisions in current information. Requires PERPLEXITY_API_KEY.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +225,12 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
     # --- Observability section ---
     st.subheader("Observability")
 
+    # Research Summary
+    research_report = state.get("research_report", "")
+    if research_report:
+        with st.expander("Research Summary", expanded=False):
+            st.markdown(research_report)
+
     # Challenge Resolution Log
     if state.get("challenge_history"):
         with st.expander("Challenge Resolution Log", expanded=True):
@@ -374,6 +390,13 @@ def _run_debate_loop() -> None:
     state = st.session_state["ard_state"]
 
     with st.status("Generating SDD...", expanded=True) as status_widget:
+        # Run research stage once (pass-through if disabled)
+        if not state.get("research_report") and state["iteration"] == 0:
+            st.write("Running pre-debate research...")
+            state = run_single_step(state, "researcher")
+            if state.get("research_report"):
+                st.write(f"Research complete ({len(state['research_report'])} chars)")
+
         # Re-render rounds from before a HITL pause (if resuming)
         _render_prior_rounds(state)
 
@@ -437,6 +460,9 @@ if st.button("Generate SDD", type="primary"):
         st.stop()
 
     validated = validate_input(rough_idea)
+    # Apply research toggle to config so researcher_node sees it
+    get_config()["research_enabled"] = research_enabled
+
     st.session_state["ard_state"] = {
         "rough_idea": validated,
         "current_draft": "",
@@ -444,6 +470,7 @@ if st.button("Generate SDD", type="primary"):
         "iteration": 0,
         "status": "in_progress",
         "user_clarifications": [],
+        "research_report": "",
     }
     st.session_state["ard_phase"] = "running"
     st.session_state["pending_ambiguities"] = []
