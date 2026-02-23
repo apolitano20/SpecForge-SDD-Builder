@@ -23,6 +23,47 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
         lines.append(overview)
         lines.append("")
 
+    # Context Viewpoint
+    context = data.get("context")
+    if context and (context.get("system_boundary") or context.get("external_actors")
+                    or context.get("information_flows")):
+        lines.append("## Context")
+        lines.append("")
+
+        boundary = context.get("system_boundary", "")
+        if boundary:
+            lines.append("### System Boundary")
+            lines.append("")
+            lines.append(boundary)
+            lines.append("")
+
+        actors = context.get("external_actors", [])
+        if actors:
+            lines.append("### External Actors")
+            lines.append("")
+            lines.append("| Name | Type | Description |")
+            lines.append("|------|------|-------------|")
+            for actor in actors:
+                name = actor.get("name", "")
+                atype = actor.get("type", "")
+                desc = actor.get("description", "")
+                lines.append(f"| {name} | `{atype}` | {desc} |")
+            lines.append("")
+
+        flows = context.get("information_flows", [])
+        if flows:
+            lines.append("### Information Flows")
+            lines.append("")
+            lines.append("| From | To | Data | Protocol |")
+            lines.append("|------|----|------|----------|")
+            for flow in flows:
+                from_e = flow.get("from", "")
+                to_e = flow.get("to", "")
+                data_desc = flow.get("data", "")
+                protocol = flow.get("protocol", "")
+                lines.append(f"| {from_e} | {to_e} | {data_desc} | {protocol} |")
+            lines.append("")
+
     # Tech Stack
     tech_stack = data.get("tech_stack", [])
     if tech_stack:
@@ -152,6 +193,19 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
             if errors:
                 lines.append(f"**Errors:** {errors}")
                 lines.append("")
+
+    # Glossary
+    glossary = data.get("glossary", [])
+    if glossary:
+        lines.append("## Glossary")
+        lines.append("")
+        lines.append("| Term | Definition |")
+        lines.append("|------|------------|")
+        for entry in glossary:
+            term = entry.get("term", "")
+            definition = entry.get("definition", "")
+            lines.append(f"| **{term}** | {definition} |")
+        lines.append("")
 
     # design_rationale is intentionally excluded — it's a working field for the debate loop
     # user_clarifications are appended separately by write_spec if present

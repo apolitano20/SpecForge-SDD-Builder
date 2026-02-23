@@ -50,6 +50,30 @@ def valid_architect_response():
                 "description": "List all tasks — handled by TaskService",
             }
         ],
+        "context": {
+            "system_boundary": "Manages task CRUD for individual users. Does NOT handle team collaboration.",
+            "external_actors": [
+                {
+                    "name": "EndUser",
+                    "type": "user",
+                    "description": "Creates and manages personal tasks",
+                }
+            ],
+            "information_flows": [
+                {
+                    "from": "EndUser",
+                    "to": "TaskService",
+                    "data": "task creation requests",
+                    "protocol": "HTTP API",
+                }
+            ],
+        },
+        "glossary": [
+            {
+                "term": "Task",
+                "definition": "A single to-do item with a title, status, and owner.",
+            }
+        ],
         "key_decisions": ["Chose FastAPI for async support"],
         "design_rationale": "Initial draft addressing all requirements.",
     }

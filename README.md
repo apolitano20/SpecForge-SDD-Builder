@@ -20,7 +20,7 @@ Rough Idea
  spec.md
 ```
 
-1. The **Architect** reads your idea (plus any prior reviewer feedback) and produces a JSON SDD draft covering: tech stack, directory structure, components, data models, API endpoints, and key design decisions.
+1. The **Architect** reads your idea (plus any prior reviewer feedback) and produces a JSON SDD draft covering: context (system boundary, external actors, information flows), tech stack, directory structure, components, data models, API endpoints, glossary, and key design decisions.
 2. The **Reviewer** evaluates the draft against three axes — **completeness**, **consistency**, and **ambiguity** — and returns structured challenges with severity levels (`critical` / `minor`).
 3. If there are critical issues, the Architect revises. If only minor issues remain, the design is verified and the minor notes are appended to the final spec.
 4. The final JSON is converted to a clean Markdown `spec.md`.
@@ -155,19 +155,21 @@ tests/
 pytest tests/ -v
 ```
 
-130 tests covering validation logic, graph routing, HITL helpers, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
+147 tests covering validation logic, graph routing, HITL helpers, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
 
 ## Example Output
 
 The generated `spec.md` includes:
 
 - **Project Overview** — the original rough idea for context
+- **Context** — system boundary, external actors, and information flows (IEEE-1016 inspired)
 - **Tech Stack** — specific versions and frameworks
 - **Key Design Decisions** — architectural choices with rationale
 - **Directory Structure** — full project tree with entry points
 - **Components** — each with type, purpose, file path, and dependencies
 - **Data Models** — field names, types, descriptions, and foreign keys
 - **API Endpoints** — method, path, query params, request/response JSON shapes, error codes
+- **Glossary** — domain-specific terms and definitions
 - **Reviewer Notes** — minor suggestions that didn't block verification
 - **User Design Decisions** — choices made via Human-in-the-Loop during the debate (if any)
 

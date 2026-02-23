@@ -89,6 +89,111 @@ class TestValidateResponse:
         assert data["api_endpoints"] == []
         assert data["key_decisions"] == []
         assert data["design_rationale"] == ""
+        assert data["context"] == {"system_boundary": "", "external_actors": [], "information_flows": []}
+        assert data["glossary"] == []
+
+
+class TestContextValidation:
+    def test_missing_context_defaults(self):
+        data = {"components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}]}
+        _validate_response(data)
+        assert data["context"]["system_boundary"] == ""
+        assert data["context"]["external_actors"] == []
+        assert data["context"]["information_flows"] == []
+
+    def test_valid_context_passes(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "context": {
+                "system_boundary": "Manages tasks only",
+                "external_actors": [
+                    {"name": "User", "type": "user", "description": "Creates tasks"}
+                ],
+                "information_flows": [
+                    {"from": "User", "to": "TaskService", "data": "task data", "protocol": "HTTP"}
+                ],
+            },
+        }
+        _validate_response(data)
+
+    def test_actor_missing_required_fields_raises(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "context": {"external_actors": [{"name": "User"}]},
+        }
+        with pytest.raises(ValueError, match="External actor 0 missing required fields"):
+            _validate_response(data)
+
+    def test_actor_invalid_type_raises(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "context": {
+                "external_actors": [
+                    {"name": "User", "type": "invalid", "description": "test"}
+                ]
+            },
+        }
+        with pytest.raises(ValueError, match="invalid type"):
+            _validate_response(data)
+
+    def test_flow_missing_required_fields_raises(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "context": {"information_flows": [{"from": "User"}]},
+        }
+        with pytest.raises(ValueError, match="Information flow 0 missing required fields"):
+            _validate_response(data)
+
+    def test_flow_protocol_optional(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "context": {
+                "information_flows": [
+                    {"from": "User", "to": "Service", "data": "requests"}
+                ]
+            },
+        }
+        _validate_response(data)
+        assert data["context"]["information_flows"][0]["protocol"] == ""
+
+    def test_partial_context_defaults_missing_subfields(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "context": {"system_boundary": "Only tasks"},
+        }
+        _validate_response(data)
+        assert data["context"]["external_actors"] == []
+        assert data["context"]["information_flows"] == []
+
+
+class TestGlossaryValidation:
+    def test_missing_glossary_defaults(self):
+        data = {"components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}]}
+        _validate_response(data)
+        assert data["glossary"] == []
+
+    def test_valid_glossary_passes(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "glossary": [{"term": "Task", "definition": "A to-do item"}],
+        }
+        _validate_response(data)
+
+    def test_glossary_missing_term_raises(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "glossary": [{"definition": "A to-do item"}],
+        }
+        with pytest.raises(ValueError, match="Glossary entry 0 missing required fields"):
+            _validate_response(data)
+
+    def test_glossary_missing_definition_raises(self):
+        data = {
+            "components": [{"name": "X", "type": "Subsystem", "purpose": "ok"}],
+            "glossary": [{"term": "Task"}],
+        }
+        with pytest.raises(ValueError, match="Glossary entry 0 missing required fields"):
+            _validate_response(data)
 
 
 # --- _build_user_prompt ---

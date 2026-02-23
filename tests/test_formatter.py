@@ -140,6 +140,80 @@ class TestRenderMarkdown:
         md = _render_markdown(data)
         assert "**Dependencies:** Bar, Baz" in md
 
+    def test_context_renders_all_subsections(self):
+        data = {
+            "context": {
+                "system_boundary": "Manages tasks. Does NOT handle notifications.",
+                "external_actors": [
+                    {"name": "EndUser", "type": "user", "description": "Creates tasks"}
+                ],
+                "information_flows": [
+                    {"from": "EndUser", "to": "TaskAPI", "data": "task data", "protocol": "HTTP API"}
+                ],
+            }
+        }
+        md = _render_markdown(data)
+        assert "## Context" in md
+        assert "### System Boundary" in md
+        assert "Manages tasks. Does NOT handle notifications." in md
+        assert "### External Actors" in md
+        assert "| EndUser | `user` | Creates tasks |" in md
+        assert "### Information Flows" in md
+        assert "| EndUser | TaskAPI | task data | HTTP API |" in md
+
+    def test_context_omitted_when_empty(self):
+        data = {
+            "context": {
+                "system_boundary": "",
+                "external_actors": [],
+                "information_flows": [],
+            }
+        }
+        md = _render_markdown(data)
+        assert "## Context" not in md
+
+    def test_context_partial_boundary_only(self):
+        data = {
+            "context": {
+                "system_boundary": "Task management only",
+                "external_actors": [],
+                "information_flows": [],
+            }
+        }
+        md = _render_markdown(data)
+        assert "## Context" in md
+        assert "### System Boundary" in md
+        assert "### External Actors" not in md
+
+    def test_context_between_overview_and_tech_stack(self):
+        data = {
+            "project_description": "A todo app",
+            "tech_stack": ["Python"],
+            "context": {"system_boundary": "Task management"},
+        }
+        md = _render_markdown(data)
+        overview_pos = md.index("## Project Overview")
+        context_pos = md.index("## Context")
+        tech_pos = md.index("## Tech Stack")
+        assert overview_pos < context_pos < tech_pos
+
+    def test_glossary_renders(self):
+        data = {
+            "glossary": [
+                {"term": "Task", "definition": "A to-do item with title and status."},
+                {"term": "Workspace", "definition": "A container for related tasks."},
+            ]
+        }
+        md = _render_markdown(data)
+        assert "## Glossary" in md
+        assert "| **Task** | A to-do item with title and status. |" in md
+        assert "| **Workspace** | A container for related tasks. |" in md
+
+    def test_glossary_omitted_when_empty(self):
+        data = {"glossary": []}
+        md = _render_markdown(data)
+        assert "## Glossary" not in md
+
 
 # --- write_spec (file I/O) ---
 

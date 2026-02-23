@@ -84,6 +84,30 @@ You MUST respond with valid JSON matching this exact schema:
       "description": "string — what this endpoint does and which component handles it"
     }
   ],
+  "context": {
+    "system_boundary": "string — what the system IS responsible for and what it explicitly does NOT handle",
+    "external_actors": [
+      {
+        "name": "string (e.g., EndUser, PaymentGateway)",
+        "type": "user | system | service",
+        "description": "string — role and interaction with the system"
+      }
+    ],
+    "information_flows": [
+      {
+        "from": "string — source actor or component name",
+        "to": "string — destination actor or component name",
+        "data": "string — what data is exchanged (e.g., 'authentication credentials')",
+        "protocol": "string (optional) — communication pattern (e.g., 'HTTP API', 'message queue')"
+      }
+    ]
+  },
+  "glossary": [
+    {
+      "term": "string — domain-specific term",
+      "definition": "string — 1-2 sentence definition"
+    }
+  ],
   "key_decisions": [
     "string — each entry is a concise architectural decision and its rationale, e.g. 'Chose SQLite over PostgreSQL for zero-config local development'"
   ],
@@ -106,6 +130,14 @@ they were made. Rewrite from scratch each iteration to reflect the current desig
 - If the user has provided clarifications (in the "User Clarifications" section), treat them as \
 authoritative design decisions. Address them in your design_rationale and ensure the draft \
 reflects the user's stated preference. Never override a user clarification.
+- context.system_boundary: State what the system IS and is NOT responsible for.
+- context.external_actors: All entities outside the system boundary. Type must be user, system, \
+or service.
+- context.information_flows: Key data exchanges between actors and components. Protocol is \
+optional — use architectural patterns only (e.g., "HTTP API", "message queue"), not \
+implementation details.
+- glossary: Domain-specific terms only. Do NOT define obvious tech terms (API, database, REST). \
+Empty array is fine for simple CRUD apps with no specialized domain concepts.
 - Respond ONLY with the JSON object. No markdown fences, no commentary.
 
 Architectural rules:
@@ -195,6 +227,51 @@ def _validate_response(data: dict) -> None:
         data["key_decisions"] = []
     if "design_rationale" not in data:
         data["design_rationale"] = ""
+
+    # Validate context field
+    if "context" not in data:
+        data["context"] = {
+            "system_boundary": "",
+            "external_actors": [],
+            "information_flows": [],
+        }
+    else:
+        ctx = data["context"]
+        if "system_boundary" not in ctx:
+            ctx["system_boundary"] = ""
+        if "external_actors" not in ctx:
+            ctx["external_actors"] = []
+        else:
+            for i, actor in enumerate(ctx["external_actors"]):
+                if not all(k in actor for k in ("name", "type", "description")):
+                    raise ValueError(
+                        f"External actor {i} missing required fields (name, type, description)."
+                    )
+                if actor["type"] not in {"user", "system", "service"}:
+                    raise ValueError(
+                        f"External actor {i} has invalid type '{actor['type']}'. "
+                        f"Must be one of: user, system, service"
+                    )
+        if "information_flows" not in ctx:
+            ctx["information_flows"] = []
+        else:
+            for i, flow in enumerate(ctx["information_flows"]):
+                if not all(k in flow for k in ("from", "to", "data")):
+                    raise ValueError(
+                        f"Information flow {i} missing required fields (from, to, data)."
+                    )
+                if "protocol" not in flow:
+                    flow["protocol"] = ""
+
+    # Validate glossary field
+    if "glossary" not in data:
+        data["glossary"] = []
+    else:
+        for i, entry in enumerate(data["glossary"]):
+            if not all(k in entry for k in ("term", "definition")):
+                raise ValueError(
+                    f"Glossary entry {i} missing required fields (term, definition)."
+                )
 
 
 def architect_node(state: ARDState) -> dict:

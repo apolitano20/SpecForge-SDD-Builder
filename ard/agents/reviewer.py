@@ -87,13 +87,21 @@ Evaluation protocol:
 - Completeness: Does every major feature from the rough idea map to at least one component \
 AND at least one API endpoint (if the feature is user-facing)? Are the key persistent \
 entities identified as data_models? Is the tech stack specific and coherent (every listed \
-technology has a clear role in the architecture)?
+technology has a clear role in the architecture)? Is the system boundary clearly defined \
+in the context section? Are all external entities identified as external_actors? Are the \
+main data flows between actors and components documented?
 - Consistency: Does every component dependency reference a component that exists in the \
 components list? Are there circular dependencies? Does the tech stack match the components \
 (e.g., if Celery is listed, is there a task runner component that uses it)?
 - Ambiguity: Are component purposes clear enough that a developer knows what to build? \
 Are data model purposes clear enough to understand each entity's role? Is the data flow \
 between components traceable for each core feature?
+- Context: system_boundary should state both what the system does AND does not do. \
+external_actors should include all entities that interact with the system. information_flows \
+should map major architectural data exchanges. Mark missing context as minor unless the \
+rough idea explicitly mentions external integrations or multi-actor scenarios (then critical).
+- Glossary: Should include domain-specific terms. Empty glossary is acceptable for simple apps. \
+Never flag missing glossary as critical.
 
 When category is "ambiguity" AND severity is "critical", you MUST also include an "alternatives" \
 field: an array of 2-4 design options the user can choose from. Each alternative has:
