@@ -391,7 +391,7 @@ def _run_debate_loop() -> None:
 
     with st.status("Generating SDD...", expanded=True) as status_widget:
         # Run research stage once (pass-through if disabled)
-        if not state.get("research_report") and state["iteration"] == 0:
+        if not state.get("research_report") and state["iteration"] == 0 and research_enabled:
             st.write("Running pre-debate research...")
             state = run_single_step(state, "researcher")
             if state.get("research_report"):
