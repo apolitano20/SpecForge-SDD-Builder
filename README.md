@@ -1,6 +1,10 @@
-# SpecForge
+<p align="center">
+  <img src="spec_forge_logo.png" alt="SpecForge Logo" width="400">
+</p>
 
-An AI-powered tool that transforms a rough software idea into a complete **Software Design Document (SDD)** through an iterative debate between two LLMs.
+<p align="center">
+  An AI-powered tool that transforms a rough software idea into a complete <strong>Software Design Document (SDD)</strong> through an iterative debate between two LLMs.
+</p>
 
 An **Architect** agent (Gemini Flash) drafts the design, and a **Reviewer** agent (Claude Sonnet) stress-tests it for completeness, consistency, and ambiguity. They iterate until the Reviewer verifies the design or a max iteration limit is reached. The output is a structured Markdown SDD (named after your project, e.g., `todo-api.md`) ready to be used as a blueprint by Claude Code or any other coding agent.
 
