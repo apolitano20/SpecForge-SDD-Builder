@@ -10,14 +10,10 @@ venv/
 env/
 .env
 *.env
-ard/output/spec.md
-ard/output/*
+ard/output/*.md
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 .pytest_cache/
-IEEE-1016-2019.md
-research-agent.md
-CLAUDE.md

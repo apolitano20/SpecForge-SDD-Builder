@@ -96,11 +96,14 @@ PERPLEXITY_API_KEY=your-perplexity-api-key  # Optional, for pre-debate research
 streamlit run ard/dashboard/app.py
 ```
 
+Or on Windows, double-click `launch.bat`.
+
 This opens a web UI where you can:
 - Enter your rough idea in a text area
 - Toggle **Human-in-the-Loop** to be asked about ambiguous design choices
 - Toggle **Pre-debate Research** to ground stack decisions in current web sources
 - Watch the debate unfold with per-round challenge summaries
+- Preview the current spec draft when paused for HITL decisions
 - Download the final `spec.md`
 - Inspect observability panels (challenge resolution log, user design decisions, evolution summary)
 
@@ -201,6 +204,8 @@ pytest tests/ -v
 ```
 
 162 tests covering validation logic, graph routing, HITL helpers, research agent, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
+
+**Continuous Integration**: GitHub Actions runs the full test suite on Python 3.11, 3.12, and 3.13 for every push and pull request.
 
 ## Example Output
 

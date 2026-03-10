@@ -114,6 +114,58 @@ You MUST respond with valid JSON matching this exact schema:
   "design_rationale": "string — internal field used during the review loop to address reviewer challenges by index. This field is excluded from the final output."
 }
 
+Here is a minimal example of a valid response for a simple "Todo REST API" idea:
+{
+  "project_name": "todo-rest-api",
+  "project_description": "A lightweight REST API for managing personal to-do items. Supports CRUD operations with SQLite persistence and JWT authentication.",
+  "tech_stack": ["Python 3.12", "FastAPI", "SQLite", "SQLAlchemy"],
+  "directory_structure": "src/\\n  main.py\\n  auth/\\n    jwt.py\\n  models/\\n    task.py\\n  routes/\\n    tasks.py",
+  "components": [
+    {
+      "name": "TaskService",
+      "type": "Subsystem",
+      "purpose": "Handles task CRUD operations and ownership checks",
+      "file_path": "src/services/task.py",
+      "dependencies": ["TaskStore"]
+    },
+    {
+      "name": "TaskStore",
+      "type": "DataStore",
+      "purpose": "SQLite persistence layer for tasks",
+      "file_path": "src/models/task.py",
+      "dependencies": []
+    }
+  ],
+  "data_models": [
+    {
+      "name": "Task",
+      "purpose": "Represents a single to-do item owned by a user",
+      "key_fields": ["user_id: FK:User.id", "status: enum(pending, done)"]
+    }
+  ],
+  "api_endpoints": [
+    {"method": "GET", "path": "/api/tasks", "description": "List all tasks for the authenticated user — handled by TaskService"},
+    {"method": "POST", "path": "/api/tasks", "description": "Create a new task — handled by TaskService"}
+  ],
+  "context": {
+    "system_boundary": "Manages task CRUD for individual users. Does NOT handle team collaboration or notifications.",
+    "external_actors": [
+      {"name": "EndUser", "type": "user", "description": "Creates and manages personal tasks via the API"}
+    ],
+    "information_flows": [
+      {"from": "EndUser", "to": "TaskService", "data": "task creation/update requests", "protocol": "HTTP API"}
+    ]
+  },
+  "glossary": [
+    {"term": "Task", "definition": "A single to-do item with a title, status, and owner."}
+  ],
+  "key_decisions": [
+    "Chose FastAPI for async support and auto-generated OpenAPI docs",
+    "Chose SQLite over PostgreSQL for zero-config local development"
+  ],
+  "design_rationale": "Initial draft addressing all requirements from the rough idea."
+}
+
 Rules:
 - Every component must have all five fields: name, type, purpose, file_path, dependencies.
 - data_models: list key persistent entities with purpose and design-choice fields only. Do NOT \

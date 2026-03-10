@@ -10,7 +10,7 @@ import json
 
 import streamlit as st
 
-from ard.config import get_config
+from ard.config import get_config, validate_api_keys
 from ard.graph import route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
@@ -418,6 +418,55 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
 # ---------------------------------------------------------------------------
 
 
+def _render_spec_preview(current_draft_json: str) -> None:
+    """Render a compact preview of the current spec draft."""
+    try:
+        draft = json.loads(current_draft_json)
+    except (json.JSONDecodeError, TypeError):
+        st.caption("*Current draft unavailable.*")
+        return
+
+    # Project overview
+    project_name = draft.get("project_name", "Untitled")
+    project_desc = draft.get("project_description", "No description")
+    st.markdown(f"**{project_name}**")
+    st.caption(project_desc)
+    st.divider()
+
+    # Tech stack
+    tech_stack = draft.get("tech_stack", [])
+    if tech_stack:
+        st.markdown("**Tech Stack:**")
+        st.markdown(", ".join(tech_stack))
+
+    # Components
+    components = draft.get("components", [])
+    if components:
+        st.markdown(f"**Components ({len(components)}):**")
+        for c in components[:5]:  # Show first 5
+            st.markdown(f"- **{c.get('name', '?')}** ({c.get('type', '?')}): {c.get('purpose', '')}")
+        if len(components) > 5:
+            st.caption(f"...and {len(components) - 5} more")
+
+    # Data models
+    data_models = draft.get("data_models", [])
+    if data_models:
+        st.markdown(f"**Data Models ({len(data_models)}):**")
+        for m in data_models[:5]:  # Show first 5
+            st.markdown(f"- **{m.get('name', '?')}**: {m.get('purpose', '')}")
+        if len(data_models) > 5:
+            st.caption(f"...and {len(data_models) - 5} more")
+
+    # API endpoints
+    api_endpoints = draft.get("api_endpoints", [])
+    if api_endpoints:
+        st.markdown(f"**API Endpoints ({len(api_endpoints)}):**")
+        for ep in api_endpoints[:5]:  # Show first 5
+            st.markdown(f"- `{ep.get('method', '?')} {ep.get('path', '?')}`")
+        if len(api_endpoints) > 5:
+            st.caption(f"...and {len(api_endpoints) - 5} more")
+
+
 def _render_hitl_form() -> None:
     """Show the HITL form for pending ambiguity challenges and handle submission."""
     ambiguities = st.session_state["pending_ambiguities"]
@@ -425,6 +474,12 @@ def _render_hitl_form() -> None:
 
     st.subheader(":material/help: Design Decisions Needed")
     st.warning("The Reviewer identified ambiguous design choices that need your input.")
+
+    # Show current draft preview
+    current_draft = state.get("current_draft", "")
+    if current_draft:
+        with st.expander(":material/visibility: Current Draft Preview", expanded=False):
+            _render_spec_preview(current_draft)
 
     # Show completed rounds so far
     for i, round_data in enumerate(state.get("challenge_history", []), 1):
@@ -619,6 +674,11 @@ if st.button("Generate SDD", type="primary"):
     validated = validate_input(rough_idea)
     # Apply research toggle to config so researcher_node sees it
     get_config()["research_enabled"] = research_enabled
+    try:
+        validate_api_keys()
+    except SystemExit as e:
+        st.error(str(e))
+        st.stop()
 
     st.session_state["ard_state"] = {
         "rough_idea": validated,

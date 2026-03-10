@@ -2,7 +2,7 @@
 
 import sys
 
-from ard.config import get_config
+from ard.config import get_config, validate_api_keys
 from ard.graph import graph, route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
@@ -78,6 +78,7 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
     # Apply research override at config level so researcher_node sees it
     if research is not None:
         config["research_enabled"] = research
+    validate_api_keys()
     validated = validate_input(rough_idea)
 
     state: ARDState = {
