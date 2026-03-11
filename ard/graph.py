@@ -93,9 +93,30 @@ def run_single_step(state: ARDState, node_name: str) -> ARDState:
 
     Used by the dashboard/CLI for manual step-by-step execution with HITL.
     """
+    from ard.utils.progress import progress
+
+    # Agent name mapping for pretty output
+    AGENT_LABELS = {
+        "researcher": "Researcher",
+        "architect": "Architect",
+        "reviewer": "Reviewer",
+        "increment": None,  # Silent
+        "timeout": None,    # Silent
+    }
+
+    label = AGENT_LABELS.get(node_name)
+
+    if label:
+        progress(f"  {label}: Starting...")
+
     node_fn = _NODE_FNS[node_name]
     updates = node_fn(state)
-    return {**state, **updates}
+    new_state = {**state, **updates}
+
+    if label:
+        progress(f"  {label}: Complete ✓")
+
+    return new_state
 
 
 def should_pause_for_hitl(state: ARDState) -> list[dict]:

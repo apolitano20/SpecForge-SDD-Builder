@@ -18,6 +18,8 @@ import time
 import requests
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from ard.utils.progress import progress
+
 from ard.config import get_config
 from ard.state import ARDState
 from ard.utils.parsing import strip_fences, invoke_with_retry
@@ -217,7 +219,7 @@ def researcher_node(state: ARDState) -> dict:
         print("[ARD] No research queries generated. Continuing without research.", file=sys.stderr)
         return {"research_report": "", "llm_usage": state.get("llm_usage", []) + usage_entries}
 
-    print(f"[ARD] Researching {len(queries)} queries...", file=sys.stderr)
+    progress(f"  Researching {len(queries)} queries...")
 
     # Phase 2: Execute queries (with delay to reduce Gemini rate-limit pressure)
     responses = []
@@ -255,7 +257,7 @@ def researcher_node(state: ARDState) -> dict:
         )
         synthesized = raw_report
 
-    print(f"[ARD] Research complete ({len(synthesized)} chars).", file=sys.stderr)
+    progress(f"  Research complete ({len(synthesized)} chars)")
 
     return {
         "research_report": synthesized,

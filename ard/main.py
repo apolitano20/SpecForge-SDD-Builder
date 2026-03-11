@@ -6,6 +6,7 @@ from ard.config import get_config, validate_api_keys
 from ard.graph import graph, route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
+from ard.utils.progress import progress
 from ard.utils.token_usage import format_usage_summary
 from ard.utils.validator import validate_input
 
@@ -102,6 +103,12 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
 
         # Manual loop with HITL pauses
         while True:
+            # Show iteration context
+            max_iter = config.get("max_iterations", 10)
+            current_iter = state.get("iteration", 0) + 1
+            progress("")
+            progress(f"🔬 Iteration {current_iter}/{max_iter}")
+
             state = run_single_step(state, "architect")
             state = run_single_step(state, "reviewer")
 
@@ -111,10 +118,11 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
                 challenges = latest.get("challenges", [])
                 critical = sum(1 for c in challenges if c.get("severity") == "critical")
                 minor = sum(1 for c in challenges if c.get("severity") == "minor")
-                print(
-                    f"[ARD] Round {len(history)} — "
-                    f"{critical} critical, {minor} minor"
-                )
+
+                if critical == 0 and minor == 0:
+                    progress(f"  └─ ✓ No issues found")
+                else:
+                    progress(f"  └─ Found {critical} critical, {minor} minor issues")
 
             route = route_after_review(state)
             if route == "end":
@@ -138,10 +146,14 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
         final_state = state
 
     output_path = write_spec(final_state)
-    print(f"[ARD] Status: {final_state['status']}")
-    print(f"[ARD] Iterations: {final_state['iteration']}")
-    print(f"[ARD] {format_usage_summary(final_state.get('llm_usage', []))}")
-    print(f"[ARD] Output written to: {output_path}")
+    progress(f"\n{'='*60}")
+    progress("Generation Complete")
+    progress(f"{'='*60}")
+    progress(f"Status: {final_state['status']}")
+    progress(f"Iterations: {final_state['iteration']}")
+    progress(format_usage_summary(final_state.get('llm_usage', [])))
+    progress(f"Output written to: {output_path}")
+    progress("")
 
 
 def main() -> None:
