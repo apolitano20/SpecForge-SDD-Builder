@@ -14,6 +14,7 @@ from ard.config import get_config, validate_api_keys
 from ard.graph import route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
+from ard.utils.quality_metrics import calculate_quality_metrics
 from ard.utils.token_usage import aggregate_usage
 from ard.utils.validator import validate_input
 
@@ -313,6 +314,96 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
         )
     else:
         st.info(f"Completed with status: {final_status}")
+
+    # --- Quality Metrics Dashboard ---
+    metrics = calculate_quality_metrics(state)
+
+    st.markdown("### Quality Metrics")
+
+    # Quality score with color coding
+    score = metrics["quality_score"]
+    label = metrics["quality_label"]
+    if score >= 75:
+        score_color = "#22C55E"  # green
+    elif score >= 60:
+        score_color = "#F59E0B"  # amber
+    else:
+        score_color = "#EF4444"  # red
+
+    st.markdown(
+        f'<div style="background: #1E293B; border-radius: 8px; padding: 16px; '
+        f'border: 1px solid #334155; margin-bottom: 16px;">'
+        f'<div style="display: flex; align-items: center; gap: 16px;">'
+        f'<div style="font-size: 3rem; font-weight: bold; color: {score_color};">{score}</div>'
+        f'<div>'
+        f'<div style="font-size: 1.25rem; font-weight: 600; color: {score_color};">{label}</div>'
+        f'<div style="font-size: 0.875rem; color: #94A3B8;">Quality Score (0-100)</div>'
+        f'</div>'
+        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+    # Detailed breakdown
+    q1, q2, q3, q4 = st.columns(4)
+
+    with q1:
+        if metrics["verified_at_round"]:
+            st.metric(
+                "Verified at Round",
+                metrics["verified_at_round"],
+                help="The round where all critical issues were resolved"
+            )
+        else:
+            st.metric(
+                "Total Rounds",
+                metrics["total_rounds"],
+                help="Max iterations reached without full verification"
+            )
+
+    with q2:
+        st.metric(
+            "Critical Issues",
+            metrics["critical_issues"],
+            help="Total critical issues identified across all rounds"
+        )
+
+    with q3:
+        st.metric(
+            "Issues Addressed",
+            metrics["total_issues_addressed"],
+            help="Total issues resolved during the debate (excludes final round)"
+        )
+
+    with q4:
+        st.metric(
+            "User Decisions",
+            metrics["user_clarifications"],
+            help="Number of design choices requiring human input"
+        )
+
+    # Summary explanation
+    if final_status == "verified":
+        summary_parts = []
+        if metrics["verified_at_round"]:
+            summary_parts.append(f"verified after **{metrics['verified_at_round']} round(s)**")
+        if metrics["critical_issues"] == 0:
+            summary_parts.append("**0 critical issues**")
+        else:
+            summary_parts.append(f"**{metrics['critical_issues']} critical issue(s)** identified and resolved")
+        if metrics["total_issues_addressed"] > 0:
+            summary_parts.append(f"**{metrics['total_issues_addressed']} total issue(s)** addressed")
+        if metrics["user_clarifications"] > 0:
+            summary_parts.append(f"**{metrics['user_clarifications']} design decision(s)** clarified")
+
+        st.caption("✓ " + ", ".join(summary_parts) + ".")
+    elif final_status == "max_iterations_reached":
+        st.caption(
+            f"⚠ Reached max iterations with **{final_critical} critical** and "
+            f"**{final_minor} minor** issues unresolved. Consider manual review or re-running with more iterations."
+        )
+
+    st.divider()
 
     # --- Summary metrics ---
     total_rounds = len(state.get("challenge_history", []))

@@ -7,6 +7,7 @@ from ard.graph import graph, route_after_review, run_single_step, should_pause_f
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
 from ard.utils.progress import progress
+from ard.utils.quality_metrics import calculate_quality_metrics
 from ard.utils.token_usage import format_usage_summary
 from ard.utils.validator import validate_input
 
@@ -146,11 +147,22 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
         final_state = state
 
     output_path = write_spec(final_state)
+    metrics = calculate_quality_metrics(final_state)
+
     progress(f"\n{'='*60}")
     progress("Generation Complete")
     progress(f"{'='*60}")
     progress(f"Status: {final_state['status']}")
     progress(f"Iterations: {final_state['iteration']}")
+    progress("")
+    progress("Quality Metrics:")
+    progress(f"  Quality Score: {metrics['quality_score']}/100 ({metrics['quality_label']})")
+    if metrics["verified_at_round"]:
+        progress(f"  Verified at Round: {metrics['verified_at_round']}")
+    progress(f"  Critical Issues: {metrics['critical_issues']}")
+    progress(f"  Issues Addressed: {metrics['total_issues_addressed']}")
+    progress(f"  User Decisions: {metrics['user_clarifications']}")
+    progress("")
     progress(format_usage_summary(final_state.get('llm_usage', [])))
     progress(f"Output written to: {output_path}")
     progress("")
