@@ -132,7 +132,7 @@ if 0 < idea_len < 50:
 st.divider()
 
 # Controls row
-ctrl1, ctrl2 = st.columns(2)
+ctrl1, ctrl2, ctrl3 = st.columns(3)
 with ctrl1:
     hitl_enabled = st.toggle(
         "Human-in-the-Loop",
@@ -148,6 +148,14 @@ with ctrl2:
         key="research_toggle",
         help="When enabled, queries the Perplexity API before the debate to ground "
         "stack decisions in current information. Requires PERPLEXITY_API_KEY.",
+    )
+with ctrl3:
+    thorough_mode = st.toggle(
+        "Thorough Review Mode",
+        value=get_config().get("review_mode", "standard") == "thorough",
+        key="thorough_toggle",
+        help="When enabled, the Reviewer is extra critical and won't verify before round 5. "
+        "Opt-in for users who want maximum scrutiny of their design.",
     )
 
 
@@ -323,8 +331,10 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
     # Quality score with color coding
     score = metrics["quality_score"]
     label = metrics["quality_label"]
-    if score >= 75:
+    if score >= 90:
         score_color = "#22C55E"  # green
+    elif score >= 75:
+        score_color = "#10B981"  # lighter green
     elif score >= 60:
         score_color = "#F59E0B"  # amber
     else:
@@ -337,71 +347,90 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
         f'<div style="font-size: 3rem; font-weight: bold; color: {score_color};">{score}</div>'
         f'<div>'
         f'<div style="font-size: 1.25rem; font-weight: 600; color: {score_color};">{label}</div>'
-        f'<div style="font-size: 0.875rem; color: #94A3B8;">Quality Score (0-100)</div>'
+        f'<div style="font-size: 0.875rem; color: #94A3B8;">Final Spec Quality (0-100)</div>'
         f'</div>'
         f'</div>'
         f'</div>',
         unsafe_allow_html=True
     )
 
-    # Detailed breakdown
+    st.caption("Quality score measures the buildability of the final SDD — how well Claude Code can use it to build an MVP.")
+
+    # Quality component breakdown
     q1, q2, q3, q4 = st.columns(4)
 
     with q1:
-        if metrics["verified_at_round"]:
-            st.metric(
-                "Verified at Round",
-                metrics["verified_at_round"],
-                help="The round where all critical issues were resolved"
-            )
-        else:
-            st.metric(
-                "Total Rounds",
-                metrics["total_rounds"],
-                help="Max iterations reached without full verification"
-            )
+        st.metric(
+            "Structural Integrity",
+            f"{metrics['structural_integrity']}/40",
+            help="Are all pieces consistent? Tech stack used, flows reference real components, no orphans."
+        )
 
     with q2:
         st.metric(
-            "Critical Issues",
-            metrics["critical_issues"],
-            help="Total critical issues identified across all rounds"
+            "Completeness",
+            f"{metrics['completeness']}/30",
+            help="Are all necessary sections present? Components, models, endpoints, flows, tech stack."
         )
 
     with q3:
         st.metric(
-            "Issues Addressed",
-            metrics["total_issues_addressed"],
-            help="Total issues resolved during the debate (excludes final round)"
+            "Implementation Readiness",
+            f"{metrics['implementation_readiness']}/20",
+            help="Can a builder start immediately? All components have purposes, endpoints have handlers, models have fields."
         )
 
     with q4:
         st.metric(
-            "User Decisions",
-            metrics["user_clarifications"],
-            help="Number of design choices requiring human input"
+            "Clarity",
+            f"{metrics['clarity']}/10",
+            help="Is the spec well-explained? System boundary, glossary, fewer unresolved notes."
         )
 
-    # Summary explanation
-    if final_status == "verified":
-        summary_parts = []
-        if metrics["verified_at_round"]:
-            summary_parts.append(f"verified after **{metrics['verified_at_round']} round(s)**")
-        if metrics["critical_issues"] == 0:
-            summary_parts.append("**0 critical issues**")
-        else:
-            summary_parts.append(f"**{metrics['critical_issues']} critical issue(s)** identified and resolved")
-        if metrics["total_issues_addressed"] > 0:
-            summary_parts.append(f"**{metrics['total_issues_addressed']} total issue(s)** addressed")
-        if metrics["user_clarifications"] > 0:
-            summary_parts.append(f"**{metrics['user_clarifications']} design decision(s)** clarified")
+    # Show detailed breakdown in expanders
+    with st.expander("📊 Detailed Quality Breakdown"):
+        breakdown = metrics["breakdown"]
 
-        st.caption("✓ " + ", ".join(summary_parts) + ".")
-    elif final_status == "max_iterations_reached":
-        st.caption(
-            f"⚠ Reached max iterations with **{final_critical} critical** and "
-            f"**{final_minor} minor** issues unresolved. Consider manual review or re-running with more iterations."
-        )
+        st.markdown("**Structural Integrity (40 points)**")
+        for key, value in breakdown["structural_integrity"].items():
+            st.text(f"  • {key.replace('_', ' ').title()}: {value}")
+
+        st.markdown("**Completeness (30 points)**")
+        for key, value in breakdown["completeness"].items():
+            st.text(f"  • {key.replace('_', ' ').title()}: {value}")
+
+        st.markdown("**Implementation Readiness (20 points)**")
+        for key, value in breakdown["implementation_readiness"].items():
+            st.text(f"  • {key.replace('_', ' ').title()}: {value}")
+
+        st.markdown("**Clarity & Coherence (10 points)**")
+        for key, value in breakdown["clarity"].items():
+            st.text(f"  • {key.replace('_', ' ').title()}: {value}")
+
+    # Process metrics (informational only)
+    with st.expander("ℹ️ Process Metrics (Informational Only)"):
+        st.caption("These metrics describe the generation process but do not affect the quality score.")
+
+        pm = metrics["process_metrics"]
+        p1, p2, p3, p4 = st.columns(4)
+
+        with p1:
+            if pm["verified_at_round"]:
+                st.metric("Verified at Round", pm["verified_at_round"])
+            else:
+                st.metric("Total Rounds", pm["total_rounds"])
+
+        with p2:
+            st.metric("Critical Issues", pm["critical_issues"])
+
+        with p3:
+            st.metric("Issues Addressed", pm["issues_addressed"])
+
+        with p4:
+            st.metric("User Decisions", pm["user_clarifications"])
+
+        if pm["total_tokens"] > 0:
+            st.caption(f"Total tokens used: {pm['total_tokens']:,}")
 
     st.divider()
 
@@ -794,8 +823,9 @@ if st.button("Generate SDD", type="primary"):
         st.stop()
 
     validated = validate_input(rough_idea)
-    # Apply research toggle to config so researcher_node sees it
+    # Apply toggles to config so agents see them
     get_config()["research_enabled"] = research_enabled
+    get_config()["review_mode"] = "thorough" if thorough_mode else "standard"
     try:
         validate_api_keys()
     except SystemExit as e:

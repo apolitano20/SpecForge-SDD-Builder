@@ -217,10 +217,37 @@ def reviewer_node(state: ARDState) -> dict:
     """
     config = get_config()
     model_name = config["reviewer_model"]
+    review_mode = config.get("review_mode", "standard")
+    current_iteration = state.get("iteration", 0)
 
     llm = ChatAnthropic(model=model_name, temperature=0)
 
     system_content = SYSTEM_PROMPT
+
+    # In thorough mode, add extra scrutiny instructions
+    if review_mode == "thorough":
+        min_rounds = config.get("thorough_min_rounds", 5)
+        before_threshold = (current_iteration + 1) < min_rounds
+
+        system_content += "\n\n## THOROUGH REVIEW MODE\n"
+        system_content += "You are operating in THOROUGH mode. Apply heightened scrutiny:\n"
+        system_content += "- Be extra critical of ambiguous component purposes or unclear boundaries\n"
+        system_content += "- Flag any tech stack items that don't have clear justification in the design rationale\n"
+        system_content += "- Question any missing edge cases or error handling scenarios\n"
+        system_content += "- Demand explicit justification for architectural choices\n"
+        system_content += "- If components have implicit dependencies not declared, mark as critical consistency issue\n"
+
+        if before_threshold:
+            system_content += (
+                f"- IMPORTANT: Do NOT verify before iteration {min_rounds} "
+                f"(current: {current_iteration + 1}). If you would normally verify but haven't reached "
+                f"that threshold, find at least one minor issue to extend the review process.\n"
+            )
+        else:
+            system_content += (
+                f"- You have reached the thorough review threshold (iteration {current_iteration + 1} >= {min_rounds}). "
+                f"Now apply standard verification rules: verify if there are no critical issues.\n"
+            )
 
     # Inject research findings if available
     research_report = state.get("research_report", "")
@@ -258,6 +285,27 @@ def reviewer_node(state: ARDState) -> dict:
     content = strip_fences(response.content)
     data = json.loads(content)
     _validate_response(data)
+
+    # Enforce thorough mode minimum rounds
+    if review_mode == "thorough":
+        min_rounds = config.get("thorough_min_rounds", 5)
+        if current_iteration + 1 < min_rounds and data["status"] == "verified":
+            # Override to needs_revision - add a minor challenge if none exist
+            if not data.get("challenges"):
+                data["challenges"] = [{
+                    "id": 1,
+                    "severity": "minor",
+                    "category": "completeness",
+                    "description": (
+                        f"Thorough review mode: extending review until round {min_rounds}. "
+                        "Please continue refining the design."
+                    )
+                }]
+            data["status"] = "needs_revision"
+            print(
+                f"[ARD] Thorough mode: Extending review (iteration {current_iteration + 1}/{min_rounds})",
+                file=sys.stderr,
+            )
 
     new_history = state["challenge_history"] + [data]
     usage_entry = {**usage, "agent": "reviewer", "model": model_name, "iteration": state["iteration"]}

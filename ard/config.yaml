@@ -6,3 +6,5 @@ guidance_enabled: true                  # Inject architectural guidelines into a
 llm_max_retries: 3                      # Retry count for transient API errors (429, 500, etc.)
 hitl_enabled: true                     # Pause on critical ambiguity for user input
 research_enabled: false                # Pre-debate research via Perplexity API (requires PERPLEXITY_API_KEY)
+review_mode: standard                   # Review rigor: "standard" (default) or "thorough" (extra critical, never verifies before thorough_min_rounds)
+thorough_min_rounds: 5                  # Minimum rounds before verification in thorough mode

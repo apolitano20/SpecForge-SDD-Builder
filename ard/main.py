@@ -67,20 +67,23 @@ def _collect_hitl_input(ambiguities: list[dict], iteration: int) -> list[dict]:
     return clarifications
 
 
-def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None) -> None:
+def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None, thorough: bool | None = None) -> None:
     """Run the full ARD pipeline on a rough idea string.
 
     Args:
         rough_idea: The user's rough software idea.
         hitl: Override for HITL. None uses config default.
         research: Override for research. None uses config default.
+        thorough: Override for thorough review mode. None uses config default.
     """
     config = get_config()
     hitl_enabled = hitl if hitl is not None else config.get("hitl_enabled", True)
 
-    # Apply research override at config level so researcher_node sees it
+    # Apply overrides at config level so agents see them
     if research is not None:
         config["research_enabled"] = research
+    if thorough is not None:
+        config["review_mode"] = "thorough" if thorough else "standard"
     validate_api_keys()
     validated = validate_input(rough_idea)
 
@@ -155,13 +158,22 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
     progress(f"Status: {final_state['status']}")
     progress(f"Iterations: {final_state['iteration']}")
     progress("")
-    progress("Quality Metrics:")
-    progress(f"  Quality Score: {metrics['quality_score']}/100 ({metrics['quality_label']})")
-    if metrics["verified_at_round"]:
-        progress(f"  Verified at Round: {metrics['verified_at_round']}")
-    progress(f"  Critical Issues: {metrics['critical_issues']}")
-    progress(f"  Issues Addressed: {metrics['total_issues_addressed']}")
-    progress(f"  User Decisions: {metrics['user_clarifications']}")
+    progress("Spec Quality Assessment:")
+    progress(f"  Overall Score: {metrics['quality_score']}/100 ({metrics['quality_label']})")
+    progress(f"    Structural Integrity: {metrics['structural_integrity']}/40")
+    progress(f"    Completeness: {metrics['completeness']}/30")
+    progress(f"    Implementation Readiness: {metrics['implementation_readiness']}/20")
+    progress(f"    Clarity: {metrics['clarity']}/10")
+    progress("")
+    progress("Process Summary:")
+    pm = metrics["process_metrics"]
+    if pm["verified_at_round"]:
+        progress(f"  Verified at round {pm['verified_at_round']}")
+    else:
+        progress(f"  Reached max iterations ({pm['total_rounds']} rounds)")
+    progress(f"  Critical issues: {pm['critical_issues']}")
+    progress(f"  Issues addressed: {pm['issues_addressed']}")
+    progress(f"  User decisions: {pm['user_clarifications']}")
     progress("")
     progress(format_usage_summary(final_state.get('llm_usage', [])))
     progress(f"Output written to: {output_path}")
@@ -172,6 +184,7 @@ def main() -> None:
     """CLI entry point — accepts rough idea as argument or from stdin."""
     hitl = None
     research = None
+    thorough = None
     args = sys.argv[1:]
 
     if "--no-hitl" in args:
@@ -182,13 +195,17 @@ def main() -> None:
         research = False
         args.remove("--no-research")
 
+    if "--thorough" in args:
+        thorough = True
+        args.remove("--thorough")
+
     if args:
         rough_idea = " ".join(args)
     else:
         print("Enter your rough idea (Ctrl+D / Ctrl+Z to submit):")
         rough_idea = sys.stdin.read()
 
-    run(rough_idea, hitl=hitl, research=research)
+    run(rough_idea, hitl=hitl, research=research, thorough=thorough)
 
 
 if __name__ == "__main__":
