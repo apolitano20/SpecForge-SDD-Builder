@@ -17,3 +17,4 @@ ard/output/*.md
 *.swo
 *~
 .pytest_cache/
+WORKLOG.md
