@@ -105,13 +105,15 @@ This opens a web UI where you can:
 - Watch the debate unfold with per-round challenge summaries
 - Preview the current spec draft when paused for HITL decisions
 - Download the final `spec.md`
-- Inspect observability panels (challenge resolution log, user design decisions, evolution summary)
+- Inspect observability panels (challenge resolution log, user design decisions, evolution summary, token usage tracking)
 
 ### CLI
 
 ```bash
 python -m ard.main "Build a task management API with user auth, projects, and real-time notifications"
 ```
+
+The CLI displays real-time progress indicators showing iteration count, agent status (Researcher, Architect, Reviewer), and round summaries as the debate unfolds.
 
 Or pipe from stdin:
 
@@ -176,6 +178,8 @@ ard/
     guidance.py        # Architectural guidelines for prompt injection
     buildability.py    # Deterministic structural validation of draft
     parsing.py         # Shared parsing & retry utilities (strip_fences, invoke_with_retry)
+    progress.py        # CLI progress output with automatic mode detection
+    token_usage.py     # Token usage tracking and cost estimation
     validator.py       # Input validation
   config.py            # Config loader (config.yaml + .env)
   config.yaml          # Runtime configuration
@@ -189,11 +193,13 @@ tests/
   test_formatter.py
   test_graph_routing.py
   test_guidance.py
+  test_hitl.py
   test_integration.py
   test_parsing.py
-  test_reviewer_validation.py
-  test_hitl.py
+  test_progress.py
   test_researcher.py
+  test_reviewer_validation.py
+  test_token_usage.py
   test_validator.py
 ```
 
@@ -203,7 +209,7 @@ tests/
 pytest tests/ -v
 ```
 
-162 tests covering validation logic, graph routing, HITL helpers, research agent, buildability checks, markdown formatting, guidance loading, retry logic, and integration tests with mocked LLMs. No API keys required.
+183 tests covering validation logic, graph routing, HITL helpers, research agent, buildability checks, markdown formatting, guidance loading, retry logic, CLI progress output, token usage tracking, and integration tests with mocked LLMs. No API keys required.
 
 **Continuous Integration**: GitHub Actions runs the full test suite on Python 3.11, 3.12, and 3.13 for every push and pull request.
 
