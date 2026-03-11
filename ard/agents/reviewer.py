@@ -254,14 +254,16 @@ def reviewer_node(state: ARDState) -> dict:
         {"role": "user", "content": user_prompt},
     ]
 
-    response = invoke_with_retry(llm, messages)
+    response, usage = invoke_with_retry(llm, messages)
     content = strip_fences(response.content)
     data = json.loads(content)
     _validate_response(data)
 
     new_history = state["challenge_history"] + [data]
+    usage_entry = {**usage, "agent": "reviewer", "model": model_name, "iteration": state["iteration"]}
 
     return {
         "status": data["status"],
         "challenge_history": new_history,
+        "llm_usage": state.get("llm_usage", []) + [usage_entry],
     }

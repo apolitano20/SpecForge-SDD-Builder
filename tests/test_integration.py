@@ -10,9 +10,10 @@ from ard.agents.reviewer import reviewer_node
 
 
 def _mock_llm_response(content: str):
-    """Create a mock LLM response object."""
+    """Create a mock LLM response object with usage metadata."""
     response = MagicMock()
     response.content = content
+    response.usage_metadata = {"input_tokens": 100, "output_tokens": 50}
     return response
 
 

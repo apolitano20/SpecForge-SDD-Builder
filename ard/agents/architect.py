@@ -370,8 +370,9 @@ def architect_node(state: ARDState) -> dict:
     ]
 
     # First attempt
-    response = invoke_with_retry(llm, messages)
+    response, usage = invoke_with_retry(llm, messages)
     content = strip_fences(response.content)
+    usage_entries = [{**usage, "agent": "architect", "model": model_name, "iteration": state["iteration"]}]
 
     try:
         data = json.loads(content)
@@ -388,10 +389,11 @@ def architect_node(state: ARDState) -> dict:
             ),
         })
         try:
-            response = invoke_with_retry(llm, messages)
+            response, retry_usage = invoke_with_retry(llm, messages)
             content = strip_fences(response.content)
             data = json.loads(content)
             _validate_response(data)
+            usage_entries.append({**retry_usage, "agent": "architect", "model": model_name, "iteration": state["iteration"]})
         except (json.JSONDecodeError, ValueError) as exc:
             # Both attempts failed — keep the previous draft so progress isn't lost
             if state["current_draft"]:
@@ -400,10 +402,16 @@ def architect_node(state: ARDState) -> dict:
                     f"Keeping previous draft.",
                     file=sys.stderr,
                 )
-                return {"current_draft": state["current_draft"]}
+                return {
+                    "current_draft": state["current_draft"],
+                    "llm_usage": state.get("llm_usage", []) + usage_entries,
+                }
             raise
 
     # Re-serialize after validation/normalization to capture any fixes
     content = json.dumps(data, indent=2)
 
-    return {"current_draft": content}
+    return {
+        "current_draft": content,
+        "llm_usage": state.get("llm_usage", []) + usage_entries,
+    }

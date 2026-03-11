@@ -37,41 +37,47 @@ class TestInvokeWithRetry:
         llm.invoke.side_effect = side_effect
         return llm
 
-    @patch("ard.config._config", {"llm_max_retries": 3})
-    def test_succeeds_on_first_try(self):
+    def _mock_response(self):
         response = MagicMock()
         response.content = '{"ok": true}'
+        response.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+        return response
+
+    @patch("ard.config._config", {"llm_max_retries": 3})
+    def test_succeeds_on_first_try(self):
+        response = self._mock_response()
         llm = self._mock_llm([response])
 
-        result = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
+        result, usage = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
 
         assert result.content == '{"ok": true}'
+        assert usage["input_tokens"] == 10
+        assert usage["output_tokens"] == 5
         assert llm.invoke.call_count == 1
 
     @patch("ard.config._config", {"llm_max_retries": 3})
     def test_retries_on_connect_error(self):
-        response = MagicMock()
-        response.content = '{"ok": true}'
+        response = self._mock_response()
         llm = self._mock_llm([
             httpx.ConnectError("connection refused"),
             response,
         ])
 
-        result = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
+        result, usage = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
 
         assert result.content == '{"ok": true}'
+        assert usage["input_tokens"] == 10
         assert llm.invoke.call_count == 2
 
     @patch("ard.config._config", {"llm_max_retries": 3})
     def test_retries_on_timeout(self):
-        response = MagicMock()
-        response.content = '{"ok": true}'
+        response = self._mock_response()
         llm = self._mock_llm([
             httpx.ReadTimeout("read timed out"),
             response,
         ])
 
-        result = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
+        result, usage = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
 
         assert result.content == '{"ok": true}'
         assert llm.invoke.call_count == 2
@@ -79,14 +85,13 @@ class TestInvokeWithRetry:
     @patch("ard.config._config", {"llm_max_retries": 3})
     def test_retries_on_429(self):
         response_429 = httpx.Response(429, request=httpx.Request("POST", "https://api.example.com"))
-        response = MagicMock()
-        response.content = '{"ok": true}'
+        response = self._mock_response()
         llm = self._mock_llm([
             httpx.HTTPStatusError("rate limited", request=response_429.request, response=response_429),
             response,
         ])
 
-        result = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
+        result, usage = invoke_with_retry(llm, [{"role": "user", "content": "hi"}])
 
         assert result.content == '{"ok": true}'
         assert llm.invoke.call_count == 2

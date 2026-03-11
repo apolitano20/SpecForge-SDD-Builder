@@ -14,6 +14,7 @@ from ard.config import get_config, validate_api_keys
 from ard.graph import route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
+from ard.utils.token_usage import aggregate_usage
 from ard.utils.validator import validate_input
 
 st.set_page_config(
@@ -321,12 +322,16 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
     ) if total_rounds > 1 else 0
     hitl_decisions = len(state.get("user_clarifications", []))
 
-    m1, m2, m3, m4 = st.columns(4)
+    usage_agg = aggregate_usage(state.get("llm_usage", []))
+    total_tokens = usage_agg["total_input"] + usage_agg["total_output"]
+
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Rounds", total_rounds)
     m2.metric("Critical Resolved", total_critical_resolved)
     m3.metric("HITL Decisions", hitl_decisions)
     status_label = "Verified" if final_status == "verified" else "Timed Out" if final_status == "max_iterations_reached" else final_status
     m4.metric("Status", status_label)
+    m5.metric("Tokens", f"{total_tokens:,}", help=f"~${usage_agg['cost_usd']:.4f}")
 
     st.divider()
 
@@ -362,6 +367,8 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
     clarifications = state.get("user_clarifications", [])
     if clarifications:
         tab_names.append("Design Decisions")
+    if state.get("llm_usage"):
+        tab_names.append("Token Usage")
     if initial_draft_json and state.get("current_draft"):
         tab_names.append("Evolution")
     if state.get("current_draft"):
@@ -389,6 +396,30 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
                         f"({c.get('challenge_description', '')}):\n"
                         f"  {c.get('user_response', '')} *({source})*"
                     )
+            tab_idx += 1
+
+        # Token Usage
+        if state.get("llm_usage"):
+            with tabs[tab_idx]:
+                by_agent = usage_agg["by_agent"]
+                rows = []
+                for agent, data in sorted(by_agent.items()):
+                    models_str = ", ".join(sorted(data["models"])) or "—"
+                    rows.append(
+                        f"| {agent.title()} | {models_str} | {data['calls']} "
+                        f"| {data['input']:,} | {data['output']:,} |"
+                    )
+                table = (
+                    "| Agent | Model | Calls | Input Tokens | Output Tokens |\n"
+                    "|-------|-------|------:|-----------:|-----------:|\n"
+                    + "\n".join(rows)
+                )
+                st.markdown(table)
+                st.caption(
+                    f"**Total:** {usage_agg['total_input']:,} in / "
+                    f"{usage_agg['total_output']:,} out "
+                    f"(~${usage_agg['cost_usd']:.4f})"
+                )
             tab_idx += 1
 
         # Evolution
@@ -688,6 +719,7 @@ if st.button("Generate SDD", type="primary"):
         "status": "in_progress",
         "user_clarifications": [],
         "research_report": "",
+        "llm_usage": [],
     }
     st.session_state["ard_phase"] = "running"
     st.session_state["pending_ambiguities"] = []

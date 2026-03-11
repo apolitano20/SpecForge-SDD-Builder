@@ -6,6 +6,7 @@ from ard.config import get_config, validate_api_keys
 from ard.graph import graph, route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
+from ard.utils.token_usage import format_usage_summary
 from ard.utils.validator import validate_input
 
 
@@ -89,6 +90,7 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
         "status": "in_progress",
         "user_clarifications": [],
         "research_report": "",
+        "llm_usage": [],
     }
 
     if not hitl_enabled:
@@ -138,6 +140,7 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None)
     output_path = write_spec(final_state)
     print(f"[ARD] Status: {final_state['status']}")
     print(f"[ARD] Iterations: {final_state['iteration']}")
+    print(f"[ARD] {format_usage_summary(final_state.get('llm_usage', []))}")
     print(f"[ARD] Output written to: {output_path}")
 
 

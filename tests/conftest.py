@@ -15,6 +15,7 @@ def base_state():
         "status": "in_progress",
         "user_clarifications": [],
         "research_report": "",
+        "llm_usage": [],
     }
 
 

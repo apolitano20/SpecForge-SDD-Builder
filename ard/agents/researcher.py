@@ -78,8 +78,11 @@ actionable information.
 """
 
 
-def _generate_queries(rough_idea: str, config: dict) -> list[str]:
-    """Use Gemini Flash to generate targeted research queries from the rough idea."""
+def _generate_queries(rough_idea: str, config: dict) -> tuple[list[str], dict]:
+    """Use Gemini Flash to generate targeted research queries from the rough idea.
+
+    Returns (queries, usage_dict).
+    """
     model_name = config["architect_model"]
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
 
@@ -88,7 +91,7 @@ def _generate_queries(rough_idea: str, config: dict) -> list[str]:
         {"role": "user", "content": rough_idea},
     ]
 
-    response = invoke_with_retry(llm, messages)
+    response, usage = invoke_with_retry(llm, messages)
     content = strip_fences(response.content)
     queries = json.loads(content)
 
@@ -96,11 +99,12 @@ def _generate_queries(rough_idea: str, config: dict) -> list[str]:
         raise ValueError(f"Expected a JSON array of strings, got: {type(queries)}")
 
     # Enforce 3-5 range
-    return queries[:5] if len(queries) > 5 else queries
+    queries = queries[:5] if len(queries) > 5 else queries
+    return queries, {**usage, "agent": "researcher", "model": model_name}
 
 
-def _execute_query(query: str, api_key: str) -> str:
-    """Send a single query to the Perplexity sonar API and return the response text."""
+def _execute_query(query: str, api_key: str) -> tuple[str, dict]:
+    """Send a single query to the Perplexity sonar API and return (response_text, usage_dict)."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -121,7 +125,16 @@ def _execute_query(query: str, api_key: str) -> str:
     resp.raise_for_status()
 
     data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+
+    raw_usage = data.get("usage", {})
+    usage = {
+        "input_tokens": raw_usage.get("prompt_tokens", 0),
+        "output_tokens": raw_usage.get("completion_tokens", 0),
+        "agent": "researcher",
+        "model": PERPLEXITY_MODEL,
+    }
+    return content, usage
 
 
 def _assemble_report(queries: list[str], responses: list[str]) -> str:
@@ -149,8 +162,11 @@ def _assemble_report(queries: list[str], responses: list[str]) -> str:
     return report
 
 
-def _synthesize_report(raw_report: str, rough_idea: str, config: dict) -> str:
-    """Use Gemini Flash to compress the assembled report to essential findings."""
+def _synthesize_report(raw_report: str, rough_idea: str, config: dict) -> tuple[str, dict]:
+    """Use Gemini Flash to compress the assembled report to essential findings.
+
+    Returns (synthesized_text, usage_dict).
+    """
     model_name = config["architect_model"]
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
 
@@ -160,8 +176,8 @@ def _synthesize_report(raw_report: str, rough_idea: str, config: dict) -> str:
         {"role": "user", "content": prompt},
     ]
 
-    response = invoke_with_retry(llm, messages)
-    return response.content.strip()
+    response, usage = invoke_with_retry(llm, messages)
+    return response.content.strip(), {**usage, "agent": "researcher", "model": model_name}
 
 
 def researcher_node(state: ARDState) -> dict:
@@ -183,21 +199,23 @@ def researcher_node(state: ARDState) -> dict:
         )
 
     rough_idea = state["rough_idea"]
+    usage_entries = []
 
     # Phase 1: Generate queries
     try:
-        queries = _generate_queries(rough_idea, config)
+        queries, gen_usage = _generate_queries(rough_idea, config)
+        usage_entries.append({**gen_usage, "iteration": state["iteration"]})
     except Exception as exc:
         print(
             f"[ARD] Research query generation failed: {exc!r}. "
             f"Continuing without research.",
             file=sys.stderr,
         )
-        return {"research_report": ""}
+        return {"research_report": "", "llm_usage": state.get("llm_usage", [])}
 
     if not queries:
         print("[ARD] No research queries generated. Continuing without research.", file=sys.stderr)
-        return {"research_report": ""}
+        return {"research_report": "", "llm_usage": state.get("llm_usage", []) + usage_entries}
 
     print(f"[ARD] Researching {len(queries)} queries...", file=sys.stderr)
 
@@ -207,8 +225,9 @@ def researcher_node(state: ARDState) -> dict:
         if i > 0:
             time.sleep(random.uniform(0.5, 2.0))
         try:
-            result = _execute_query(query, api_key)
+            result, query_usage = _execute_query(query, api_key)
             responses.append(result)
+            usage_entries.append({**query_usage, "iteration": state["iteration"]})
         except Exception as exc:
             print(
                 f"[ARD] Perplexity query failed: {exc!r}. Skipping query: {query}",
@@ -220,14 +239,15 @@ def researcher_node(state: ARDState) -> dict:
     successful = [r for r in responses if not r.startswith("*Query failed:")]
     if not successful:
         print("[ARD] All research queries failed. Continuing without research.", file=sys.stderr)
-        return {"research_report": ""}
+        return {"research_report": "", "llm_usage": state.get("llm_usage", []) + usage_entries}
 
     # Phase 3: Assemble
     raw_report = _assemble_report(queries, responses)
 
     # Phase 4: Synthesize
     try:
-        synthesized = _synthesize_report(raw_report, rough_idea, config)
+        synthesized, synth_usage = _synthesize_report(raw_report, rough_idea, config)
+        usage_entries.append({**synth_usage, "iteration": state["iteration"]})
     except Exception as exc:
         print(
             f"[ARD] Research synthesis failed: {exc!r}. Using raw report.",
@@ -237,4 +257,7 @@ def researcher_node(state: ARDState) -> dict:
 
     print(f"[ARD] Research complete ({len(synthesized)} chars).", file=sys.stderr)
 
-    return {"research_report": synthesized}
+    return {
+        "research_report": synthesized,
+        "llm_usage": state.get("llm_usage", []) + usage_entries,
+    }

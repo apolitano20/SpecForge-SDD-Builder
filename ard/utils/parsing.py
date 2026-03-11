@@ -32,11 +32,27 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
+def _extract_usage(response) -> dict:
+    """Extract token usage from a LangChain AIMessage response.
+
+    Returns dict with input_tokens and output_tokens (0 if unavailable).
+    """
+    usage = getattr(response, "usage_metadata", None)
+    if usage:
+        return {
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+        }
+    return {"input_tokens": 0, "output_tokens": 0}
+
+
 def invoke_with_retry(llm, messages, max_retries: int = 3):
     """Call llm.invoke(messages) with exponential backoff on transient errors.
 
     Retries on HTTP 429/500/502/503, connection errors, and timeouts.
     Non-transient errors (auth failures, schema issues) are raised immediately.
+
+    Returns (response, usage_dict) where usage_dict has input_tokens and output_tokens.
     """
     from ard.config import get_config
 
@@ -58,4 +74,5 @@ def invoke_with_retry(llm, messages, max_retries: int = 3):
     def _invoke():
         return llm.invoke(messages)
 
-    return _invoke()
+    response = _invoke()
+    return response, _extract_usage(response)

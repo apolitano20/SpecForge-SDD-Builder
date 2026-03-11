@@ -11,3 +11,4 @@ class ARDState(TypedDict):
     status: Literal["in_progress", "verified", "max_iterations_reached"]
     user_clarifications: list[dict]  # User decisions on ambiguity challenges (HITL).
     research_report: str  # Synthesized research findings from pre-debate research stage.
+    llm_usage: list[dict]  # Per-call token usage: agent, model, input_tokens, output_tokens, iteration.
