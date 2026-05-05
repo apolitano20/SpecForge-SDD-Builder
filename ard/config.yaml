@@ -1,4 +1,4 @@
-architect_model: gemini-2.0-flash       # Exact model string for Architect Agent
+architect_model: gemini-3-flash-preview  # Exact model string for Architect Agent
 reviewer_model: claude-sonnet-4-6       # Exact model string for Reviewer Agent
 max_iterations: 10                       # Loop ceiling (cost guard)
 output_path: ./output/spec.md           # Final output destination

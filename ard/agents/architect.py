@@ -15,7 +15,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from ard.config import get_config
 from ard.state import ARDState
 from ard.utils.guidance import load_guidance
-from ard.utils.parsing import strip_fences, invoke_with_retry
+from ard.utils.parsing import strip_fences, invoke_with_retry, _extract_text
 
 VALID_TYPES = {"Subsystem", "DataStore", "Agent", "API", "UIComponent", "Utility"}
 REQUIRED_COMPONENT_FIELDS = {"name", "type", "purpose"}
@@ -379,7 +379,7 @@ def architect_node(state: ARDState) -> dict:
         _validate_response(data)
     except (json.JSONDecodeError, ValueError):
         # Re-prompt once before falling back to previous draft
-        messages.append({"role": "assistant", "content": response.content})
+        messages.append({"role": "assistant", "content": _extract_text(response.content)})
         messages.append({
             "role": "user",
             "content": (

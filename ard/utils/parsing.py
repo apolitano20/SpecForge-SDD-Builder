@@ -9,8 +9,26 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)\n?\s*```", re.DOTALL)
 
 
-def strip_fences(text: str) -> str:
+def _extract_text(content) -> str:
+    """Normalize LLM response content to a plain string.
+
+    Newer Gemini models via LangChain return content as a list of blocks
+    e.g. [{"type": "text", "text": "..."}]. Older models return a plain str.
+    """
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict):
+                parts.append(block.get("text", ""))
+            else:
+                parts.append(str(block))
+        return "".join(parts)
+    return content or ""
+
+
+def strip_fences(text) -> str:
     """Strip markdown code fences from LLM output if present."""
+    text = _extract_text(text)
     match = _FENCE_RE.search(text)
     return match.group(1).strip() if match else text.strip()
 

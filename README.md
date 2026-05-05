@@ -102,10 +102,11 @@ This opens a web UI where you can:
 - Enter your rough idea in a text area
 - Toggle **Human-in-the-Loop** to be asked about ambiguous design choices
 - Toggle **Pre-debate Research** to ground stack decisions in current web sources
+- Toggle **Thorough Review Mode** to force extra critical review
 - Watch the debate unfold with per-round challenge summaries
 - Preview the current spec draft when paused for HITL decisions
 - Download the final `spec.md`
-- Inspect observability panels (challenge resolution log, user design decisions, evolution summary, token usage tracking)
+- Inspect observability panels (challenge resolution log, user design decisions, evolution summary, quality metrics, token usage tracking)
 
 ### CLI
 
@@ -133,6 +134,18 @@ Add `--no-research` to skip the pre-debate research stage:
 python -m ard.main --no-research "Build a todo app"
 ```
 
+Add `--thorough` to enable thorough review mode, which forces extra critical review and prevents early verification:
+
+```bash
+python -m ard.main --thorough "Build a todo app"
+```
+
+Flags can be combined:
+
+```bash
+python -m ard.main --thorough --no-hitl "Build a todo app"
+```
+
 Output is written to `ard/output/<project-name>.md` (directory configurable in `ard/config.yaml`). If a file with the same name already exists, a numeric suffix is added (e.g., `todo-api (2).md`).
 
 ### What to Do with `spec.md`
@@ -157,11 +170,14 @@ guidance_enabled: true               # Inject architectural guidelines into agen
 llm_max_retries: 3                   # Retry count for transient API errors (429, 500, etc.)
 hitl_enabled: true                   # Pause on critical ambiguity for user input
 research_enabled: false              # Pre-debate research via Perplexity API
+review_mode: standard                # Review rigor: "standard" or "thorough"
+thorough_min_rounds: 5               # Minimum rounds before verification in thorough mode
 ```
 
 - **`guidance_enabled`** activates architectural best-practice guidelines that are injected into both agent prompts. The guidelines cover orchestration patterns, state management, failure handling, observability, and more — applied selectively based on relevance to the project being designed. Set to `false` to disable.
 - **`hitl_enabled`** activates Human-in-the-Loop mode. When the Reviewer flags a critical ambiguity about a design *behavior* (not implementation details like package choices), the system pauses and presents you with 2-4 alternative design choices — one marked as Recommended — plus a free-text input. Your decision is fed back to the Architect as an authoritative constraint. The dashboard also has a toggle to enable/disable HITL per session. Use `--no-hitl` in the CLI to disable.
 - **`research_enabled`** activates a pre-debate research stage. Before the Architect drafts anything, a Researcher agent generates targeted queries about the relevant stack from the rough idea, executes them against the Perplexity API, and synthesizes the findings into a concise report. This report is injected into both the Architect and Reviewer prompts to ground stack decisions in current information. Requires `PERPLEXITY_API_KEY`. The dashboard has a toggle; use `--no-research` in the CLI to disable for a single run.
+- **`review_mode`** controls review rigor. Set to `"thorough"` to force the reviewer to be extra critical and prevent early verification before `thorough_min_rounds` iterations. In thorough mode, the reviewer will always find at least one issue to address until the minimum round threshold is reached, ensuring deeper iteration and refinement. Use `--thorough` in the CLI to enable for a single run. The dashboard also has a toggle.
 
 ## Project Structure
 
@@ -179,6 +195,7 @@ ard/
     buildability.py    # Deterministic structural validation of draft
     parsing.py         # Shared parsing & retry utilities (strip_fences, invoke_with_retry)
     progress.py        # CLI progress output with automatic mode detection
+    quality_metrics.py # Spec quality scoring and metrics calculation
     token_usage.py     # Token usage tracking and cost estimation
     validator.py       # Input validation
   config.py            # Config loader (config.yaml + .env)
@@ -197,8 +214,10 @@ tests/
   test_integration.py
   test_parsing.py
   test_progress.py
+  test_quality_metrics.py
   test_researcher.py
   test_reviewer_validation.py
+  test_thorough_mode.py
   test_token_usage.py
   test_validator.py
 ```
@@ -209,7 +228,7 @@ tests/
 pytest tests/ -v
 ```
 
-183 tests covering validation logic, graph routing, HITL helpers, research agent, buildability checks, markdown formatting, guidance loading, retry logic, CLI progress output, token usage tracking, and integration tests with mocked LLMs. No API keys required.
+Comprehensive test suite covering validation logic, graph routing, HITL helpers, research agent, buildability checks, markdown formatting, guidance loading, retry logic, CLI progress output, quality metrics, thorough review mode, token usage tracking, and integration tests with mocked LLMs. No API keys required.
 
 **Continuous Integration**: GitHub Actions runs the full test suite on Python 3.11, 3.12, and 3.13 for every push and pull request.
 
