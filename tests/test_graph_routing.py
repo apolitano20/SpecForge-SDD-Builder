@@ -69,8 +69,20 @@ class TestRouteAfterReview:
     @patch("ard.graph.get_config", return_value={"max_iterations": 10})
     def test_one_under_max_returns_architect(self, _mock_gc, base_state):
         base_state["status"] = "in_progress"
-        base_state["iteration"] = 9
+        base_state["iteration"] = 8  # round 9 of 10 — one more round allowed
         assert _route_after_review(base_state) == "architect"
+
+    @patch("ard.graph.get_config", return_value={"max_iterations": 10})
+    def test_final_round_returns_timeout(self, _mock_gc, base_state):
+        """iteration is 0-indexed: iteration 9 completes round 10 of 10."""
+        base_state["status"] = "in_progress"
+        base_state["iteration"] = 9
+        assert _route_after_review(base_state) == "timeout"
+
+    @patch("ard.graph.get_config", return_value={"max_iterations": 10})
+    def test_reviewer_failed_returns_end(self, _mock_gc, base_state):
+        base_state["status"] = "reviewer_failed"
+        assert _route_after_review(base_state) == "end"
 
     @patch("ard.graph.get_config", return_value={"max_iterations": 5})
     def test_over_max_returns_timeout(self, _mock_gc, base_state):

@@ -276,6 +276,22 @@ def reviewer_node(state: ARDState) -> dict:
         f"## Original Rough Idea\n{state['rough_idea']}\n\n"
         f"## Current SDD Draft\n```json\n{state['current_draft']}\n```"
     )
+
+    # Surface HITL decisions so already-answered ambiguities aren't re-flagged
+    clarifications = state.get("user_clarifications", [])
+    if clarifications:
+        decisions = "\n".join(
+            f"- {c.get('challenge_description', '')}: {c.get('user_response', '')}"
+            for c in clarifications
+        )
+        user_prompt += (
+            "\n\n## Resolved Design Decisions (User-Provided)\n"
+            "The user has already resolved the following ambiguities. Treat them "
+            "as final design decisions — do NOT raise them as ambiguity "
+            "challenges again:\n"
+            f"{decisions}"
+        )
+
     messages = [
         {"role": "system", "content": system_content},
         {"role": "user", "content": user_prompt},
@@ -283,8 +299,24 @@ def reviewer_node(state: ARDState) -> dict:
 
     response, usage = invoke_with_retry(llm, messages)
     content = strip_fences(response.content)
-    data = json.loads(content)
-    _validate_response(data)
+    usage_entry = {**usage, "agent": "reviewer", "model": model_name, "iteration": state["iteration"]}
+
+    try:
+        data = json.loads(content)
+        _validate_response(data)
+    except (json.JSONDecodeError, ValueError) as exc:
+        # No retry by convention — but don't crash the run and lose all progress.
+        # End gracefully: the current draft is kept and the spec is still written.
+        print(
+            f"[ARD] Reviewer produced invalid output: {exc!r}. "
+            f"Ending the run with the current draft.",
+            file=sys.stderr,
+        )
+        return {
+            "status": "reviewer_failed",
+            "challenge_history": state["challenge_history"],
+            "llm_usage": state.get("llm_usage", []) + [usage_entry],
+        }
 
     # Enforce thorough mode minimum rounds
     if review_mode == "thorough":
@@ -308,7 +340,6 @@ def reviewer_node(state: ARDState) -> dict:
             )
 
     new_history = state["challenge_history"] + [data]
-    usage_entry = {**usage, "agent": "reviewer", "model": model_name, "iteration": state["iteration"]}
 
     return {
         "status": data["status"],

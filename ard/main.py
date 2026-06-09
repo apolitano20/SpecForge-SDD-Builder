@@ -2,7 +2,7 @@
 
 import sys
 
-from ard.config import get_config, validate_api_keys
+from ard.config import get_config, set_config_overrides, validate_api_keys
 from ard.graph import graph, route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
@@ -76,14 +76,16 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None,
         research: Override for research. None uses config default.
         thorough: Override for thorough review mode. None uses config default.
     """
+    # Apply overrides via the config context so agents see them
+    overrides = {}
+    if research is not None:
+        overrides["research_enabled"] = research
+    if thorough is not None:
+        overrides["review_mode"] = "thorough" if thorough else "standard"
+    set_config_overrides(overrides)
+
     config = get_config()
     hitl_enabled = hitl if hitl is not None else config.get("hitl_enabled", True)
-
-    # Apply overrides at config level so agents see them
-    if research is not None:
-        config["research_enabled"] = research
-    if thorough is not None:
-        config["review_mode"] = "thorough" if thorough else "standard"
     validate_api_keys()
     validated = validate_input(rough_idea)
 
@@ -99,8 +101,11 @@ def run(rough_idea: str, hitl: bool | None = None, research: bool | None = None,
     }
 
     if not hitl_enabled:
-        # Original behavior — fully autonomous
-        final_state = graph.invoke(state)
+        # Original behavior — fully autonomous.
+        # Each round consumes 3 graph steps (architect, reviewer, increment), so
+        # the default recursion limit of 25 would abort before max_iterations.
+        recursion_limit = 3 * config.get("max_iterations", 10) + 10
+        final_state = graph.invoke(state, {"recursion_limit": recursion_limit})
     else:
         # Run research stage once before the debate loop
         state = run_single_step(state, "researcher")

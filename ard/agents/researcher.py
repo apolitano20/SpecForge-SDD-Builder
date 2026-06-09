@@ -22,7 +22,7 @@ from ard.utils.progress import progress
 
 from ard.config import get_config
 from ard.state import ARDState
-from ard.utils.parsing import strip_fences, invoke_with_retry
+from ard.utils.parsing import strip_fences, invoke_with_retry, _extract_text
 
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
 PERPLEXITY_MODEL = "sonar"
@@ -179,7 +179,7 @@ def _synthesize_report(raw_report: str, rough_idea: str, config: dict) -> tuple[
     ]
 
     response, usage = invoke_with_retry(llm, messages)
-    return response.content.strip(), {**usage, "agent": "researcher", "model": model_name}
+    return _extract_text(response.content).strip(), {**usage, "agent": "researcher", "model": model_name}
 
 
 def researcher_node(state: ARDState) -> dict:

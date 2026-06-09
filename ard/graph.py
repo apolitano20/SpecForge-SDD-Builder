@@ -14,23 +14,32 @@ def _route_after_review(state: ARDState) -> str:
     """Conditional edge: decide next step after the Reviewer node.
 
     Priority order:
-    1. verified + buildable → end (minors are recorded as notes, not iterated on)
-    2. verified + unbuildable + iterations left → architect (fix structural issues)
-    3. iteration >= max_iterations → timeout
-    4. needs_revision + iterations left → architect
+    1. reviewer_failed → end (run terminated gracefully, keep current draft)
+    2. verified + buildable → end (minors are recorded as notes, not iterated on)
+    3. verified + unbuildable + rounds left → architect (fix structural issues)
+    4. completed rounds >= max_iterations → timeout
+    5. needs_revision + rounds left → architect
+
+    iteration is 0-indexed, so the review at iteration i completes round i+1.
+    max_iterations therefore caps the total number of architect/reviewer rounds.
     """
     config = get_config()
+
+    if state["status"] == "reviewer_failed":
+        return "end"
+
+    rounds_completed = state["iteration"] + 1
 
     if state["status"] == "verified":
         buildability_issues = check_buildability(state.get("current_draft", ""))
         if not buildability_issues:
             return "end"
         # Structurally unsound — keep iterating if possible
-        if state["iteration"] >= config["max_iterations"]:
+        if rounds_completed >= config["max_iterations"]:
             return "timeout"
         return "architect"
 
-    if state["iteration"] >= config["max_iterations"]:
+    if rounds_completed >= config["max_iterations"]:
         return "timeout"
 
     return "architect"

@@ -10,7 +10,7 @@ import json
 
 import streamlit as st
 
-from ard.config import get_config, validate_api_keys
+from ard.config import get_config, set_config_overrides, validate_api_keys
 from ard.graph import route_after_review, run_single_step, should_pause_for_hitl
 from ard.state import ARDState
 from ard.utils.formatter import write_spec
@@ -108,6 +108,11 @@ EXAMPLE_PROMPTS = [
     "E-commerce platform with inventory management and Stripe payments",
 ]
 
+# Apply a pending example prompt BEFORE the widget is instantiated —
+# setting the key after instantiation raises StreamlitAPIException.
+if "pending_example" in st.session_state:
+    st.session_state["rough_idea_input"] = st.session_state.pop("pending_example")
+
 rough_idea = st.text_area(
     "Enter your Rough Idea:",
     height=200,
@@ -121,7 +126,7 @@ ex_cols = st.columns(len(EXAMPLE_PROMPTS))
 for i, (col, prompt) in enumerate(zip(ex_cols, EXAMPLE_PROMPTS)):
     with col:
         if st.button(prompt, key=f"example_{i}", use_container_width=True):
-            st.session_state["rough_idea_input"] = prompt
+            st.session_state["pending_example"] = prompt
             st.rerun()
 
 # Character count hint
@@ -157,6 +162,13 @@ with ctrl3:
         help="When enabled, the Reviewer is extra critical and won't verify before round 5. "
         "Opt-in for users who want maximum scrutiny of their design.",
     )
+
+# Apply toggles as per-run overrides on every rerun. This keeps them scoped to
+# this session instead of mutating the config dict shared across all sessions.
+set_config_overrides({
+    "research_enabled": research_enabled,
+    "review_mode": "thorough" if thorough_mode else "standard",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +332,11 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
             f"Max iterations reached ({final_iter}). "
             f"{final_critical} critical and {final_minor} minor issues remain unresolved."
         )
+    elif final_status == "reviewer_failed":
+        st.warning(
+            "Generation ended early: the Reviewer returned invalid output. "
+            "The latest Architect draft was kept."
+        )
     else:
         st.info(f"Completed with status: {final_status}")
 
@@ -456,9 +473,12 @@ def _render_final_output(state: ARDState, initial_draft_json: str | None) -> Non
     st.divider()
 
     # --- Download button (prominent) ---
-    output_path = write_spec(state)
-    with open(output_path, "r", encoding="utf-8") as f:
-        spec_content = f.read()
+    # Write the spec only once per run — every widget interaction reruns this
+    # function, and write_spec creates a new "name (n).md" file on each call.
+    if not st.session_state.get("spec_content"):
+        output_path = write_spec(state)
+        st.session_state["spec_content"] = output_path.read_text(encoding="utf-8")
+    spec_content = st.session_state["spec_content"]
 
     st.download_button(
         label=":material/download: Download spec.md",
@@ -823,9 +843,6 @@ if st.button("Generate SDD", type="primary"):
         st.stop()
 
     validated = validate_input(rough_idea)
-    # Apply toggles to config so agents see them
-    get_config()["research_enabled"] = research_enabled
-    get_config()["review_mode"] = "thorough" if thorough_mode else "standard"
     try:
         validate_api_keys()
     except SystemExit as e:
@@ -845,6 +862,7 @@ if st.button("Generate SDD", type="primary"):
     st.session_state["ard_phase"] = "running"
     st.session_state["pending_ambiguities"] = []
     st.session_state["initial_draft_json"] = None
+    st.session_state["spec_content"] = None
     st.rerun()
 
 phase = st.session_state.get("ard_phase")

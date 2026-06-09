@@ -8,11 +8,11 @@ def _is_cli_mode() -> bool:
 
     Returns True if:
     - Streamlit is not imported (not running in dashboard)
-    - stdout is a TTY (supports interactive output)
+    - stderr is a TTY (progress is printed to stderr, so stdout may be piped)
     """
     if "streamlit" in sys.modules:
         return False
-    return sys.stdout.isatty()
+    return sys.stderr.isatty()
 
 
 def progress(message: str, prefix: str = "ARD") -> None:

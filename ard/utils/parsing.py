@@ -43,11 +43,9 @@ def _is_transient(exc: BaseException) -> bool:
         return exc.response.status_code in (429, 500, 502, 503)
     # LangChain Google GenAI wraps 429/5xx in its own exception class
     exc_str = str(exc)
-    if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+    if "RESOURCE_EXHAUSTED" in exc_str:
         return True
-    if "500" in exc_str or "502" in exc_str or "503" in exc_str:
-        return True
-    return False
+    return bool(re.search(r"\b(429|500|502|503)\b", exc_str))
 
 
 def _extract_usage(response) -> dict:

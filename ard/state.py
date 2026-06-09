@@ -8,7 +8,7 @@ class ARDState(TypedDict):
     current_draft: str  # Latest SDD draft produced by Architect.
     challenge_history: list[dict]  # All Reviewer responses, in order.
     iteration: int  # Current loop count. Starts at 0.
-    status: Literal["in_progress", "verified", "max_iterations_reached"]
+    status: Literal["in_progress", "verified", "max_iterations_reached", "reviewer_failed"]
     user_clarifications: list[dict]  # User decisions on ambiguity challenges (HITL).
     research_report: str  # Synthesized research findings from pre-debate research stage.
     llm_usage: list[dict]  # Per-call token usage: agent, model, input_tokens, output_tokens, iteration.

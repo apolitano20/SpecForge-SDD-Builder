@@ -1,6 +1,7 @@
 """Centralized config loading — read once at import time."""
 
 import os
+from contextvars import ContextVar
 from pathlib import Path
 
 import yaml
@@ -14,10 +15,23 @@ CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 
 _config = yaml.safe_load(CONFIG_PATH.read_text())
 
+# Per-run overrides (CLI flags, dashboard toggles). A ContextVar keeps them
+# scoped to the current run instead of mutating the shared module-level dict,
+# which leaks across Streamlit sessions in the same process.
+_overrides_var: ContextVar[dict | None] = ContextVar("ard_config_overrides", default=None)
+
 
 def get_config() -> dict:
-    """Return the loaded config dictionary."""
+    """Return the loaded config dictionary, merged with any per-run overrides."""
+    overrides = _overrides_var.get()
+    if overrides:
+        return {**_config, **overrides}
     return _config
+
+
+def set_config_overrides(overrides: dict | None) -> None:
+    """Set per-run config overrides (e.g. --no-research, dashboard toggles)."""
+    _overrides_var.set(overrides or None)
 
 
 def validate_api_keys() -> None:

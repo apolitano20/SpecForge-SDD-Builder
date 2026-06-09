@@ -299,17 +299,18 @@ def test_reviewer_notes_reduce_clarity():
         },
         "glossary": [{"term": "Term1", "definition": "Def1"}],
         "key_decisions": [],
-        "reviewer_notes": [
-            "Minor issue 1",
-            "Minor issue 2",
-            "Minor issue 3",
-            "Minor issue 4",
-            "Minor issue 5",
-            "Minor issue 6"  # 6 notes should reduce score
-        ]
     }
 
-    state = _make_state(spec)
+    # Reviewer notes live in challenge_history (last round's minor challenges),
+    # not in the spec JSON itself.
+    state = _make_state(spec, challenge_history=[{
+        "status": "verified",
+        "challenges": [
+            {"id": i, "severity": "minor", "category": "completeness",
+             "description": f"Minor issue {i}"}
+            for i in range(1, 7)  # 6 notes should reduce score
+        ],
+    }])
     metrics = calculate_quality_metrics(state)
 
     # Clarity should be reduced due to many reviewer notes

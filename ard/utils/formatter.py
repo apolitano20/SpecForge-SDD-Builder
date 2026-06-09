@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ard.config import get_config
 from ard.state import ARDState
+from ard.utils.buildability import check_buildability
 
 
 def _render_markdown(data: dict, rough_idea: str = "") -> str:
@@ -249,9 +250,11 @@ def write_spec(state: ARDState) -> Path:
     try:
         data = json.loads(state["current_draft"])
         content = _render_markdown(data, rough_idea=state.get("rough_idea", ""))
+        draft_parsed = True
     except (json.JSONDecodeError, TypeError):
         # Fallback: write raw content if JSON parsing fails
         content = f"# Software Design Document\n\n```json\n{state['current_draft']}\n```\n"
+        draft_parsed = False
 
     # Append research grounding if research was performed
     research_report = state.get("research_report", "")
@@ -290,6 +293,24 @@ def write_spec(state: ARDState) -> Path:
                 f"({c.get('challenge_description', '')}): "
                 f"{c.get('user_response', '')} *({source})*\n"
             )
+
+    # Surface any structural problems the loop did not manage to resolve
+    if draft_parsed:
+        structural_issues = check_buildability(state["current_draft"])
+        if structural_issues:
+            content += "\n---\n\n## Outstanding Structural Issues\n\n"
+            content += (
+                "A deterministic buildability check found unresolved structural "
+                "problems in this design:\n\n"
+            )
+            for issue in structural_issues:
+                content += f"- {issue}\n"
+
+    if state["status"] == "reviewer_failed":
+        content += (
+            "\n---\n\n*Generation ended early because the Reviewer returned "
+            "invalid output. The document above is the latest Architect draft.*\n"
+        )
 
     if state["status"] == "max_iterations_reached" and state["challenge_history"]:
         last_round = state["challenge_history"][-1]

@@ -14,6 +14,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from ard.config import get_config
 from ard.state import ARDState
+from ard.utils.buildability import check_buildability
 from ard.utils.guidance import load_guidance
 from ard.utils.parsing import strip_fences, invoke_with_retry, _extract_text
 
@@ -217,6 +218,20 @@ def _build_user_prompt(state: ARDState) -> str:
             f"```json\n{json.dumps(latest, indent=2)}\n```"
         )
 
+    # Surface deterministic buildability failures — the Reviewer may have
+    # verified the draft even though the structural check failed, in which
+    # case its feedback alone gives the Architect nothing to fix.
+    if state["current_draft"]:
+        buildability_issues = check_buildability(state["current_draft"])
+        if buildability_issues:
+            issues_text = "\n".join(f"- {issue}" for issue in buildability_issues)
+            parts.append(
+                "\n## Structural Issues (Deterministic Check)\n"
+                "An automated buildability check found these structural problems "
+                "in the current draft. You MUST fix ALL of them in this revision:\n"
+                f"{issues_text}"
+            )
+
     # Include user clarifications if any (HITL decisions)
     clarifications = state.get("user_clarifications", [])
     if clarifications:
@@ -248,7 +263,7 @@ def _validate_response(data: dict) -> None:
             )
         ctype = component["type"]
         if ctype not in VALID_TYPES:
-            normalized = _TYPE_ALIASES.get(ctype.lower())
+            normalized = _TYPE_ALIASES.get(ctype.lower()) if isinstance(ctype, str) else None
             if normalized:
                 component["type"] = normalized
             else:

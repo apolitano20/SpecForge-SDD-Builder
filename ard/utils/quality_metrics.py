@@ -6,6 +6,12 @@ from typing import Any
 from ard.state import ARDState
 
 
+def _tech_base_name(item: str) -> str:
+    """Strip version-like tokens from a tech stack item: 'Python 3.12' -> 'python'."""
+    words = [w for w in str(item).split() if not any(ch.isdigit() for ch in w)]
+    return " ".join(words).lower() or str(item).lower()
+
+
 def _parse_draft(draft: str) -> dict[str, Any]:
     """Parse the current_draft JSON string."""
     if not draft:
@@ -46,19 +52,20 @@ def _calculate_structural_integrity(spec: dict) -> tuple[int, dict]:
     # Build component name set
     component_names = {c.get("name", "") for c in components if c.get("name")}
 
-    # Extract all tech items mentioned in component dependencies
-    used_tech = set()
-    for component in components:
-        deps = component.get("dependencies", [])
-        if isinstance(deps, list):
-            for dep in deps:
-                # If dep is not a component, assume it's a tech stack reference
-                if dep and dep not in component_names:
-                    used_tech.add(dep)
+    # Tech is "used" if its name (minus version tokens) appears anywhere in the
+    # spec body. Dependencies are component names by convention, so they can't
+    # be used as the usage signal — search purposes, decisions, and structure.
+    searchable_text = json.dumps({
+        "components": components,
+        "key_decisions": spec.get("key_decisions", []),
+        "directory_structure": spec.get("directory_structure", ""),
+        "data_models": spec.get("data_models", []),
+        "api_endpoints": api_endpoints,
+    }).lower()
 
     # Check tech stack alignment (10 points)
     if tech_stack:
-        unused_tech = [item for item in tech_stack if not any(item in dep for dep in used_tech)]
+        unused_tech = [item for item in tech_stack if _tech_base_name(item) not in searchable_text]
         if len(unused_tech) > 0:
             # Deduct 2 points per unused tech item (max 10 point penalty)
             penalty = min(10, len(unused_tech) * 2)
@@ -316,13 +323,13 @@ def _calculate_implementation_readiness(spec: dict) -> tuple[int, dict]:
     return max(0, score), details
 
 
-def _calculate_clarity(spec: dict) -> tuple[int, dict]:
+def _calculate_clarity(spec: dict, minor_note_count: int) -> tuple[int, dict]:
     """Calculate clarity and coherence score (max 10 points).
 
     Checks:
     - System boundary defined (3 points)
     - Glossary has terms (2 points)
-    - Reviewer notes (5 points - fewer is better)
+    - Unresolved minor reviewer notes from the final round (5 points - fewer is better)
 
     Returns:
         (score, details_dict)
@@ -351,8 +358,7 @@ def _calculate_clarity(spec: dict) -> tuple[int, dict]:
 
     # Reviewer notes - fewer is better (5 points)
     # These are minor issues that didn't block verification
-    reviewer_notes = spec.get("reviewer_notes", [])
-    note_count = len(reviewer_notes)
+    note_count = minor_note_count
     if note_count == 0:
         notes_score = 5
     elif note_count <= 2:
@@ -401,19 +407,28 @@ def calculate_quality_metrics(state: ARDState) -> dict:
             - process_metrics: dict - Informational process data (not scored)
     """
     spec = _parse_draft(state.get("current_draft", ""))
+    challenge_history = state.get("challenge_history", [])
+
+    # Minor notes left in the final review round (the draft JSON has no
+    # reviewer_notes field — notes live in challenge_history)
+    minor_note_count = 0
+    if challenge_history:
+        minor_note_count = sum(
+            1 for c in challenge_history[-1].get("challenges", [])
+            if c.get("severity") == "minor"
+        )
 
     # Calculate quality components based on final spec
     integrity_score, integrity_details = _calculate_structural_integrity(spec)
     completeness_score, completeness_details = _calculate_completeness(spec)
     readiness_score, readiness_details = _calculate_implementation_readiness(spec)
-    clarity_score, clarity_details = _calculate_clarity(spec)
+    clarity_score, clarity_details = _calculate_clarity(spec, minor_note_count)
 
     # Total quality score
     quality_score = integrity_score + completeness_score + readiness_score + clarity_score
     quality_label = _get_quality_label(quality_score)
 
     # Process metrics (informational only - not scored)
-    challenge_history = state.get("challenge_history", [])
     total_rounds = len(challenge_history)
 
     verified_at = None
