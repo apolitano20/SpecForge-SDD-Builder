@@ -28,7 +28,7 @@ Rough Idea
 
 1. The **Architect** reads your idea (plus any prior reviewer feedback) and produces a JSON SDD draft covering: context (system boundary, external actors, information flows), tech stack, directory structure, components, data models, API endpoints, glossary, and key design decisions.
 2. The **Reviewer** evaluates the draft against three axes — **completeness**, **consistency**, and **ambiguity** — and returns structured challenges with severity levels (`critical` / `minor`).
-3. If there are critical issues, the Architect revises. If only minor issues remain, the design is verified and the minor notes are appended to the final spec.
+3. If there are critical issues, the Architect revises. If only minor issues remain, the design is verified and the minor notes are appended to the final spec. A deterministic buildability check (required sections, valid dependency graph, no cycles) must also pass — failures are fed back to the Architect for another round.
 4. The final JSON is converted to a clean Markdown `spec.md`.
 
 ## Why Use SpecForge?
@@ -61,7 +61,7 @@ For non-trivial projects, generating an SDD before coding saves **70-80% of impl
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.11+
 - A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini)
 - An [Anthropic API key](https://console.anthropic.com/) (for Claude)
 - A [Perplexity API key](https://www.perplexity.ai/settings/api) (optional, for pre-debate research)
@@ -162,7 +162,7 @@ Once the SDD is generated:
 Edit `ard/config.yaml` to adjust:
 
 ```yaml
-architect_model: gemini-2.0-flash    # Architect LLM
+architect_model: gemini-3-flash-preview  # Architect LLM
 reviewer_model: claude-sonnet-4-6    # Reviewer LLM
 max_iterations: 10                   # Max debate rounds (cost guard)
 output_path: ./output/spec.md        # Output file path
@@ -242,12 +242,13 @@ The generated `spec.md` includes:
 - **Key Design Decisions** — architectural choices with rationale
 - **Directory Structure** — full project tree with entry points
 - **Components** — each with type, purpose, file path, and dependencies
-- **Data Models** — field names, types, descriptions, and foreign keys
-- **API Endpoints** — method, path, query params, request/response JSON shapes, error codes
+- **Data Models** — purpose plus key design-choice fields (foreign keys, enums, non-obvious types); the coding agent infers standard fields
+- **API Endpoints** — method, path, and a description of which component handles each route
 - **Glossary** — domain-specific terms and definitions
 - **Research Grounding** — synthesized findings from pre-debate research (when enabled)
 - **Reviewer Notes** — minor suggestions that didn't block verification
 - **User Design Decisions** — choices made via Human-in-the-Loop during the debate (if any)
+- **Outstanding Structural Issues** — unresolved buildability problems, if the loop ended before fixing them
 
 ## License
 
