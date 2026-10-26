@@ -220,7 +220,7 @@ def reviewer_node(state: ARDState) -> dict:
     review_mode = config.get("review_mode", "standard")
     current_iteration = state.get("iteration", 0)
 
-    llm = ChatAnthropic(model=model_name, temperature=0)
+    llm = ChatAnthropic(model=model_name)
 
     system_content = SYSTEM_PROMPT
 

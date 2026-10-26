@@ -1,5 +1,6 @@
 @echo off
 cd /d "%~dp0"
+set PYTHONDONTWRITEBYTECODE=1
 call venv\Scripts\activate
-streamlit run ard\dashboard\app.py
+python -B -m streamlit run ard\dashboard\app.py
 pause

@@ -47,7 +47,7 @@ def test_standard_mode_allows_early_verification(mock_llm_response):
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "standard",
             "thorough_min_rounds": 5,
         }
@@ -77,7 +77,7 @@ def test_thorough_mode_prevents_early_verification(mock_llm_response):
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }
@@ -111,7 +111,7 @@ def test_thorough_mode_allows_verification_after_min_rounds(mock_llm_response):
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }
@@ -140,7 +140,7 @@ def test_thorough_mode_adds_minor_challenge_if_none_exist(mock_llm_response):
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }
@@ -182,7 +182,7 @@ def test_thorough_mode_preserves_existing_challenges(mock_llm_response):
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }
@@ -224,7 +224,7 @@ def test_thorough_mode_respects_needs_revision_status(mock_llm_response):
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }
@@ -258,7 +258,7 @@ def test_thorough_mode_system_prompt_enhancement():
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }
@@ -296,7 +296,7 @@ def test_custom_thorough_min_rounds():
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 3,  # Custom: only 3 rounds instead of 5
         }
@@ -327,7 +327,7 @@ def test_thorough_mode_prompt_changes_after_threshold():
 
     with patch("ard.agents.reviewer.get_config") as mock_config:
         mock_config.return_value = {
-            "reviewer_model": "claude-sonnet-4-6",
+            "reviewer_model": "claude-sonnet-5-5",
             "review_mode": "thorough",
             "thorough_min_rounds": 5,
         }

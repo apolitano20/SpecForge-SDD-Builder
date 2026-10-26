@@ -5,6 +5,7 @@ COST_PER_MTOK = {
     "gemini-2.0-flash": {"input": 0.10, "output": 0.40},
     "gemini-3-flash-preview": {"input": 0.50, "output": 3.00},
     "claude-sonnet-4-6": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00},
     "sonar": {"input": 1.00, "output": 1.00},
 }
 
