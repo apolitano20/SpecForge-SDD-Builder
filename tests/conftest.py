@@ -82,6 +82,12 @@ def valid_architect_response():
 
 
 @pytest.fixture
+def valid_sdd_dict(valid_architect_response):
+    """The Architect response plus project_description, i.e. what the strict ard.schemas.SDD requires."""
+    return {**valid_architect_response, "project_description": "A lightweight REST API for managing personal to-do items."}
+
+
+@pytest.fixture
 def valid_reviewer_response_verified():
     """Reviewer response: verified, no challenges."""
     return {"status": "verified", "challenges": []}

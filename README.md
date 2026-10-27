@@ -2,7 +2,7 @@
 
 An AI-powered tool that transforms a rough software idea into a complete **Software Design Document (SDD)** through an iterative debate between two LLMs.
 
-An **Architect** agent (Gemini Flash) drafts the design, and a **Reviewer** agent (Claude Sonnet) stress-tests it for completeness, consistency, and ambiguity. They iterate until the Reviewer verifies the design or a max iteration limit is reached. The output is a structured Markdown SDD (named after your project, e.g., `todo-api.md`) ready to be used as a blueprint by Claude Code or any other coding agent.
+An **Architect** agent (GPT) drafts the design, and a **Reviewer** agent (Claude Sonnet) stress-tests it for completeness, consistency, and ambiguity. They iterate until the Reviewer verifies the design or a max iteration limit is reached. The output is a structured Markdown SDD (named after your project, e.g., `todo-api.md`) ready to be used as a blueprint by Claude Code or any other coding agent.
 
 ## How It Works
 
@@ -18,7 +18,7 @@ Rough Idea
     ▼
 ┌──────────┐     ┌──────────┐
 │ Architect │────▶│ Reviewer  │
-│ (Gemini)  │◀───│ (Claude)  │
+│ (GPT)     │◀───│ (Claude)  │
 └──────────┘     └──────────┘
     │  loop until verified
     │  or max iterations
@@ -62,8 +62,8 @@ For non-trivial projects, generating an SDD before coding saves **70-80% of impl
 ### Prerequisites
 
 - Python 3.11+
-- A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini, used by the Researcher or a Gemini Architect)
-- An [OpenAI API key](https://platform.openai.com/api-keys) (for a `gpt-*` Architect)
+- A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini, used by the Researcher)
+- An [OpenAI API key](https://platform.openai.com/api-keys) (for the Architect)
 - An [Anthropic API key](https://console.anthropic.com/) (for Claude)
 - A [Perplexity API key](https://www.perplexity.ai/settings/api) (optional, for pre-debate research)
 
@@ -164,7 +164,7 @@ Once the SDD is generated:
 Edit `ard/config.yaml` to adjust:
 
 ```yaml
-architect_model: gpt-6-sol           # Architect LLM ("gpt-*" uses OpenAI, otherwise Gemini)
+architect_model: gpt-6-sol           # Architect LLM (OpenAI; strict structured output)
 researcher_model: gemini-3-flash-preview  # Researcher LLM (Gemini; used when research_enabled)
 reviewer_model: claude-sonnet-4-6    # Reviewer LLM
 max_iterations: 10                   # Max debate rounds (cost guard)
@@ -205,6 +205,7 @@ ard/
   config.yaml          # Runtime configuration
   graph.py             # LangGraph StateGraph definition
   main.py              # CLI entry point
+  schemas.py           # Pydantic SDD schema for the Architect's structured output
   state.py             # ARDState TypedDict
 tests/
   conftest.py          # Shared fixtures

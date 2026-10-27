@@ -7,6 +7,7 @@ import pytest
 
 from ard.agents.architect import architect_node
 from ard.agents.reviewer import reviewer_node
+from ard.schemas import SDD
 
 
 def _mock_llm_response(content: str):
@@ -17,97 +18,73 @@ def _mock_llm_response(content: str):
     return response
 
 
+def _mock_structured_result(sdd_dict: dict | None, parsing_error=None):
+    """Create the {"raw", "parsed", "parsing_error"} dict from include_raw structured output."""
+    return {
+        "raw": _mock_llm_response(""),
+        "parsed": SDD.model_validate(sdd_dict) if sdd_dict is not None else None,
+        "parsing_error": parsing_error,
+    }
+
+
 # --- architect_node ---
 
 class TestArchitectNode:
     @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
-    def test_returns_current_draft(self, MockLLM, _gc, _guid, base_state, valid_architect_response):
-        mock_instance = MagicMock()
-        mock_instance.invoke.return_value = _mock_llm_response(json.dumps(valid_architect_response))
-        MockLLM.return_value = mock_instance
-
-        result = architect_node(base_state)
-
-        assert "current_draft" in result
-        parsed = json.loads(result["current_draft"])
-        assert parsed["project_name"] == "todo-api"
-
-    @patch("ard.agents.architect.load_guidance", return_value="")
     @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
     @patch("ard.agents.architect.ChatOpenAI")
-    def test_gpt_model_uses_openai(self, MockOpenAI, MockGemini, _gc, _guid, base_state, valid_architect_response):
-        mock_instance = MagicMock()
-        mock_instance.invoke.return_value = _mock_llm_response(json.dumps(valid_architect_response))
-        MockOpenAI.return_value = mock_instance
+    def test_returns_current_draft(self, MockOpenAI, _gc, _guid, base_state, valid_sdd_dict):
+        structured = MagicMock()
+        structured.invoke.return_value = _mock_structured_result(valid_sdd_dict)
+        MockOpenAI.return_value.with_structured_output.return_value = structured
 
         result = architect_node(base_state)
 
         MockOpenAI.assert_called_once_with(model="gpt-6-sol")
-        MockGemini.assert_not_called()
-        assert json.loads(result["current_draft"])["project_name"] == "todo-api"
+        MockOpenAI.return_value.with_structured_output.assert_called_once_with(
+            SDD, method="json_schema", strict=True, include_raw=True
+        )
+        assert json.loads(result["current_draft"]) == valid_sdd_dict
 
     @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
-    def test_retry_on_bad_first_response(self, MockLLM, _gc, _guid, base_state, valid_architect_response):
-        mock_instance = MagicMock()
-        bad_response = _mock_llm_response("not json at all")
-        good_response = _mock_llm_response(json.dumps(valid_architect_response))
-        mock_instance.invoke.side_effect = [bad_response, good_response]
-        MockLLM.return_value = mock_instance
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
+    @patch("ard.agents.architect.ChatOpenAI")
+    def test_records_usage_from_raw_message(self, MockOpenAI, _gc, _guid, base_state, valid_sdd_dict):
+        structured = MagicMock()
+        structured.invoke.return_value = _mock_structured_result(valid_sdd_dict)
+        MockOpenAI.return_value.with_structured_output.return_value = structured
 
         result = architect_node(base_state)
 
-        assert mock_instance.invoke.call_count == 2
-        parsed = json.loads(result["current_draft"])
-        assert parsed["project_name"] == "todo-api"
+        assert result["llm_usage"] == [
+            {"input_tokens": 100, "output_tokens": 50, "agent": "architect", "model": "gpt-6-sol", "iteration": 0}
+        ]
 
     @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
-    def test_normalizes_types_in_output(self, MockLLM, _gc, _guid, base_state):
-        response_data = {
-            "components": [
-                {"name": "Foo", "type": "interface", "purpose": "API gateway"}
-            ]
-        }
-        mock_instance = MagicMock()
-        mock_instance.invoke.return_value = _mock_llm_response(json.dumps(response_data))
-        MockLLM.return_value = mock_instance
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
+    @patch("ard.agents.architect.ChatOpenAI")
+    def test_raises_when_unparsed_and_no_previous_draft(self, MockOpenAI, _gc, _guid, base_state):
+        structured = MagicMock()
+        structured.invoke.return_value = _mock_structured_result(None, parsing_error="refusal")
+        MockOpenAI.return_value.with_structured_output.return_value = structured
 
-        result = architect_node(base_state)
-        parsed = json.loads(result["current_draft"])
-        assert parsed["components"][0]["type"] == "API"
-
-    @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
-    def test_raises_after_two_failures_no_previous_draft(self, MockLLM, _gc, _guid, base_state):
-        """With no previous draft, two failures should raise."""
-        mock_instance = MagicMock()
-        mock_instance.invoke.return_value = _mock_llm_response("not json")
-        MockLLM.return_value = mock_instance
-
-        with pytest.raises(json.JSONDecodeError):
+        with pytest.raises(ValueError, match="valid SDD"):
             architect_node(base_state)
 
     @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
-    def test_falls_back_to_previous_draft_on_two_failures(self, MockLLM, _gc, _guid, base_state, valid_architect_response):
-        """With a previous draft, two failures should fall back instead of crashing."""
-        base_state["current_draft"] = json.dumps(valid_architect_response)
-        mock_instance = MagicMock()
-        mock_instance.invoke.return_value = _mock_llm_response("")
-        MockLLM.return_value = mock_instance
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
+    @patch("ard.agents.architect.ChatOpenAI")
+    def test_falls_back_to_previous_draft_when_unparsed(self, MockOpenAI, _gc, _guid, base_state, valid_sdd_dict):
+        """With a previous draft, an unparsed response should fall back instead of crashing."""
+        base_state["current_draft"] = json.dumps(valid_sdd_dict)
+        structured = MagicMock()
+        structured.invoke.return_value = _mock_structured_result(None)
+        MockOpenAI.return_value.with_structured_output.return_value = structured
 
         result = architect_node(base_state)
 
         assert result["current_draft"] == base_state["current_draft"]
-        assert mock_instance.invoke.call_count == 2
+        assert structured.invoke.call_count == 1
 
 
 # --- reviewer_node ---
@@ -163,15 +140,15 @@ class TestFullLoop:
     @patch("ard.agents.reviewer.get_config", return_value={"reviewer_model": "test-model"})
     @patch("ard.agents.reviewer.ChatAnthropic")
     @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
+    @patch("ard.agents.architect.ChatOpenAI")
     def test_verified_in_one_pass(
         self, MockArchLLM, _agc, _aguid, MockRevLLM, _rgc, _rguid,
-        base_state, valid_architect_response, valid_reviewer_response_verified,
+        base_state, valid_sdd_dict, valid_reviewer_response_verified,
     ):
         arch_instance = MagicMock()
-        arch_instance.invoke.return_value = _mock_llm_response(json.dumps(valid_architect_response))
-        MockArchLLM.return_value = arch_instance
+        arch_instance.invoke.return_value = _mock_structured_result(valid_sdd_dict)
+        MockArchLLM.return_value.with_structured_output.return_value = arch_instance
 
         rev_instance = MagicMock()
         rev_instance.invoke.return_value = _mock_llm_response(json.dumps(valid_reviewer_response_verified))
@@ -191,16 +168,16 @@ class TestFullLoop:
     @patch("ard.agents.reviewer.get_config", return_value={"reviewer_model": "test-model"})
     @patch("ard.agents.reviewer.ChatAnthropic")
     @patch("ard.agents.architect.load_guidance", return_value="")
-    @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
-    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
+    @patch("ard.agents.architect.ChatOpenAI")
     def test_revision_then_verified(
         self, MockArchLLM, _agc, _aguid, MockRevLLM, _rgc, _rguid,
-        base_state, valid_architect_response,
+        base_state, valid_sdd_dict,
         valid_reviewer_response_needs_revision, valid_reviewer_response_verified,
     ):
         arch_instance = MagicMock()
-        arch_instance.invoke.return_value = _mock_llm_response(json.dumps(valid_architect_response))
-        MockArchLLM.return_value = arch_instance
+        arch_instance.invoke.return_value = _mock_structured_result(valid_sdd_dict)
+        MockArchLLM.return_value.with_structured_output.return_value = arch_instance
 
         rev_instance = MagicMock()
         rev_instance.invoke.side_effect = [

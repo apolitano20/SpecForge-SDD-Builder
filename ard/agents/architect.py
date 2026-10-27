@@ -1,53 +1,22 @@
 """Architect Agent — reads rough idea + reviewer challenges, produces/updates the SDD draft.
 
-The Architect outputs a comprehensive JSON SDD with: project_name, tech_stack,
-directory_structure, components (with file_path + dependencies), data_models,
-api_endpoints (with example JSON request/response shapes and error codes),
-key_decisions (clean architectural rationale), and design_rationale (internal
-working field for the debate loop, excluded from final output).
+The Architect returns an SDD validated against the Pydantic schema in ard.schemas
+via OpenAI strict structured output, then serialized to the JSON string held in
+state["current_draft"]. design_rationale is an internal working field for the
+debate loop, excluded from the final output.
 """
 
 import json
 import sys
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from ard.config import get_config
+from ard.schemas import SDD
 from ard.state import ARDState
 from ard.utils.buildability import check_buildability
 from ard.utils.guidance import load_guidance
-from ard.utils.parsing import strip_fences, invoke_with_retry, _extract_text
-
-VALID_TYPES = {"Subsystem", "DataStore", "Agent", "API", "UIComponent", "Utility"}
-REQUIRED_COMPONENT_FIELDS = {"name", "type", "purpose"}
-
-# Map common LLM type deviations to valid types
-_TYPE_ALIASES = {
-    "interface": "API",
-    "ui": "UIComponent",
-    "uicomponent": "UIComponent",
-    "component": "UIComponent",
-    "database": "DataStore",
-    "datastore": "DataStore",
-    "data_store": "DataStore",
-    "db": "DataStore",
-    "storage": "DataStore",
-    "service": "Subsystem",
-    "module": "Subsystem",
-    "subsystem": "Subsystem",
-    "util": "Utility",
-    "utility": "Utility",
-    "helper": "Utility",
-    "agent": "Agent",
-    "api": "API",
-    "endpoint": "API",
-    "connector": "Subsystem",
-    "adapter": "Subsystem",
-    "provider": "Subsystem",
-    "client": "Subsystem",
-    "factory": "Utility",
-}
+from ard.utils.parsing import invoke_with_retry
 
 SYSTEM_PROMPT = """\
 You are the Architect agent in an Architect-Reviewer Debate system.
@@ -56,65 +25,6 @@ Your job is to read a rough idea and any reviewer challenges, then produce a hig
 Software Design Document (SDD) as JSON. This document will be used by an AI coding agent \
 (Claude Code) to build the project. Focus on architecture — the coding agent will handle \
 implementation details like individual model fields, request/response shapes, and error codes.
-
-You MUST respond with valid JSON matching this exact schema:
-{
-  "project_name": "string (kebab-case, e.g., todo-rest-api)",
-  "project_description": "string — 2-3 sentence summary of what the product does and why. Written for a developer who will build it.",
-  "tech_stack": ["string (e.g., Python 3.12, FastAPI, SQLite, React 18)"],
-  "directory_structure": "string — a high-level tree showing main directories and key files, e.g.:\\nsrc/\\n  api/\\n    routes.py\\n  models/\\n    user.py",
-  "components": [
-    {
-      "name": "string (PascalCase)",
-      "type": "one of: Subsystem | DataStore | Agent | API | UIComponent | Utility",
-      "purpose": "string describing what this component does",
-      "file_path": "string — relative path where this component lives (e.g., src/services/auth.py)",
-      "dependencies": ["string — names of other components this one depends on"]
-    }
-  ],
-  "data_models": [
-    {
-      "name": "string (PascalCase, e.g., User, Task)",
-      "purpose": "string — what this entity represents and why it exists",
-      "key_fields": ["string — ONLY fields that represent design choices: foreign keys (e.g., user_id: FK:User.id), non-obvious types (e.g., interest_profile: JSONB, status: enum(active,archived)), and fields that encode relationships or constraints. Do NOT list obvious fields like id, name, email, created_at — the coding agent infers those from context."]
-    }
-  ],
-  "api_endpoints": [
-    {
-      "method": "GET | POST | PUT | DELETE | PATCH",
-      "path": "/api/...",
-      "description": "string — what this endpoint does and which component handles it"
-    }
-  ],
-  "context": {
-    "system_boundary": "string — what the system IS responsible for and what it explicitly does NOT handle",
-    "external_actors": [
-      {
-        "name": "string (e.g., EndUser, PaymentGateway)",
-        "type": "user | system | service",
-        "description": "string — role and interaction with the system"
-      }
-    ],
-    "information_flows": [
-      {
-        "from": "string — source actor or component name",
-        "to": "string — destination actor or component name",
-        "data": "string — what data is exchanged (e.g., 'authentication credentials')",
-        "protocol": "string (optional) — communication pattern (e.g., 'HTTP API', 'message queue')"
-      }
-    ]
-  },
-  "glossary": [
-    {
-      "term": "string — domain-specific term",
-      "definition": "string — 1-2 sentence definition"
-    }
-  ],
-  "key_decisions": [
-    "string — each entry is a concise architectural decision and its rationale, e.g. 'Chose SQLite over PostgreSQL for zero-config local development'"
-  ],
-  "design_rationale": "string — internal field used during the review loop to address reviewer challenges by index. This field is excluded from the final output."
-}
 
 Here is a minimal example of a valid response for a simple "Todo REST API" idea:
 {
@@ -187,12 +97,12 @@ reflects the user's stated preference. Never override a user clarification.
 - context.system_boundary: State what the system IS and is NOT responsible for.
 - context.external_actors: All entities outside the system boundary. Type must be user, system, \
 or service.
-- context.information_flows: Key data exchanges between actors and components. Protocol is \
-optional — use architectural patterns only (e.g., "HTTP API", "message queue"), not \
+- context.information_flows: Key data exchanges between actors and components. Protocol may be an \
+empty string — use architectural patterns only (e.g., "HTTP API", "message queue"), not \
 implementation details.
 - glossary: Domain-specific terms only. Do NOT define obvious tech terms (API, database, REST). \
 Empty array is fine for simple CRUD apps with no specialized domain concepts.
-- Respond ONLY with the JSON object. No markdown fences, no commentary.
+- Use an empty string or empty array for any field that does not apply.
 
 Architectural rules:
 - NO circular dependencies. If component A depends on B, then B must NOT depend on A.
@@ -250,119 +160,30 @@ def _build_user_prompt(state: ARDState) -> str:
     return "\n".join(parts)
 
 
-def _validate_response(data: dict) -> None:
-    """Validate and normalize the Architect response to match the required schema."""
-    if "components" not in data:
-        raise ValueError("Architect response missing 'components' field.")
-
-    # Validate components
-    for i, component in enumerate(data["components"]):
-        missing = REQUIRED_COMPONENT_FIELDS - set(component.keys())
-        if missing:
-            raise ValueError(
-                f"Component {i} missing required fields: {missing}"
-            )
-        ctype = component["type"]
-        if ctype not in VALID_TYPES:
-            normalized = _TYPE_ALIASES.get(ctype.lower()) if isinstance(ctype, str) else None
-            if normalized:
-                component["type"] = normalized
-            else:
-                raise ValueError(
-                    f"Component {i} has invalid type '{ctype}'. "
-                    f"Must be one of: {VALID_TYPES}"
-                )
-        # Default optional fields if missing
-        if "file_path" not in component:
-            component["file_path"] = ""
-        if "dependencies" not in component:
-            component["dependencies"] = []
-
-    # Default top-level optional fields
-    if "project_name" not in data:
-        data["project_name"] = ""
-    if "project_description" not in data:
-        data["project_description"] = ""
-    if "tech_stack" not in data:
-        data["tech_stack"] = []
-    if "directory_structure" not in data:
-        data["directory_structure"] = ""
-    if "data_models" not in data:
-        data["data_models"] = []
-    if "api_endpoints" not in data:
-        data["api_endpoints"] = []
-    if "key_decisions" not in data:
-        data["key_decisions"] = []
-    if "design_rationale" not in data:
-        data["design_rationale"] = ""
-
-    # Validate context field
-    if "context" not in data:
-        data["context"] = {
-            "system_boundary": "",
-            "external_actors": [],
-            "information_flows": [],
-        }
-    else:
-        ctx = data["context"]
-        if "system_boundary" not in ctx:
-            ctx["system_boundary"] = ""
-        if "external_actors" not in ctx:
-            ctx["external_actors"] = []
-        else:
-            for i, actor in enumerate(ctx["external_actors"]):
-                if not all(k in actor for k in ("name", "type", "description")):
-                    raise ValueError(
-                        f"External actor {i} missing required fields (name, type, description)."
-                    )
-                if actor["type"] not in {"user", "system", "service"}:
-                    raise ValueError(
-                        f"External actor {i} has invalid type '{actor['type']}'. "
-                        f"Must be one of: user, system, service"
-                    )
-        if "information_flows" not in ctx:
-            ctx["information_flows"] = []
-        else:
-            for i, flow in enumerate(ctx["information_flows"]):
-                if not all(k in flow for k in ("from", "to", "data")):
-                    raise ValueError(
-                        f"Information flow {i} missing required fields (from, to, data)."
-                    )
-                if "protocol" not in flow:
-                    flow["protocol"] = ""
-
-    # Validate glossary field
-    if "glossary" not in data:
-        data["glossary"] = []
-    else:
-        for i, entry in enumerate(data["glossary"]):
-            if not all(k in entry for k in ("term", "definition")):
-                raise ValueError(
-                    f"Glossary entry {i} missing required fields (term, definition)."
-                )
-
-
 def _make_llm(model_name: str):
-    """Build the chat model for the Architect, choosing the provider from the model name.
+    """Build the Architect's chat model, bound to the SDD schema with strict structured output.
 
     Args:
-        model_name: Exact model string from config. Names starting with "gpt-"
-            use OpenAI; anything else uses Gemini.
+        model_name: Exact OpenAI model string from config (e.g. "gpt-6-sol").
 
     Returns:
-        A LangChain chat model instance.
+        A runnable that returns {"raw": AIMessage, "parsed": SDD | None, "parsing_error": ...}.
     """
-    if model_name.startswith("gpt-"):
-        return ChatOpenAI(model=model_name)
-    return ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    return ChatOpenAI(model=model_name).with_structured_output(
+        SDD, method="json_schema", strict=True, include_raw=True
+    )
 
 
 def architect_node(state: ARDState) -> dict:
     """Architect node for the LangGraph StateGraph.
 
     Reads rough_idea + challenge_history from state, calls the configured
-    Architect model, validates the structured JSON response, and returns
-    the updated current_draft.
+    Architect model with strict structured output, and returns the updated
+    current_draft. If the model returns nothing parseable (refusal or
+    truncation), keeps the previous draft; with no previous draft, raises.
+
+    Raises:
+        ValueError: If no valid SDD was produced and there is no previous draft.
     """
     config = get_config()
     model_name = config["architect_model"]
@@ -400,47 +221,25 @@ def architect_node(state: ARDState) -> dict:
         {"role": "user", "content": user_prompt},
     ]
 
-    # First attempt
-    response, usage = invoke_with_retry(llm, messages)
-    content = strip_fences(response.content)
+    result, usage = invoke_with_retry(llm, messages)
     usage_entries = [{**usage, "agent": "architect", "model": model_name, "iteration": state["iteration"]}]
 
-    try:
-        data = json.loads(content)
-        _validate_response(data)
-    except (json.JSONDecodeError, ValueError):
-        # Re-prompt once before falling back to previous draft
-        messages.append({"role": "assistant", "content": _extract_text(response.content)})
-        messages.append({
-            "role": "user",
-            "content": (
-                "Your response did not match the required JSON schema. "
-                "Please try again with ONLY the raw JSON object — "
-                "no markdown fences, no commentary."
-            ),
-        })
-        try:
-            response, retry_usage = invoke_with_retry(llm, messages)
-            content = strip_fences(response.content)
-            data = json.loads(content)
-            _validate_response(data)
-            usage_entries.append({**retry_usage, "agent": "architect", "model": model_name, "iteration": state["iteration"]})
-        except (json.JSONDecodeError, ValueError) as exc:
-            # Both attempts failed — keep the previous draft so progress isn't lost
-            if state["current_draft"]:
-                print(
-                    f"[ARD] Architect failed to produce valid JSON after retry: {exc!r}. "
-                    f"Keeping previous draft.",
-                    file=sys.stderr,
-                )
-                return {
-                    "current_draft": state["current_draft"],
-                    "llm_usage": state.get("llm_usage", []) + usage_entries,
-                }
-            raise
+    parsed = result["parsed"]
+    if parsed is None:
+        error = result.get("parsing_error") or "model returned no structured output"
+        if state["current_draft"]:
+            print(
+                f"[ARD] Architect failed to produce a valid SDD: {error!r}. "
+                f"Keeping previous draft.",
+                file=sys.stderr,
+            )
+            return {
+                "current_draft": state["current_draft"],
+                "llm_usage": state.get("llm_usage", []) + usage_entries,
+            }
+        raise ValueError(f"Architect failed to produce a valid SDD: {error!r}")
 
-    # Re-serialize after validation/normalization to capture any fixes
-    content = json.dumps(data, indent=2)
+    content = json.dumps(parsed.model_dump(by_alias=True), indent=2)
 
     return {
         "current_draft": content,

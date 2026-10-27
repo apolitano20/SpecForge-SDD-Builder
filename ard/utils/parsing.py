@@ -51,8 +51,13 @@ def _is_transient(exc: BaseException) -> bool:
 def _extract_usage(response) -> dict:
     """Extract token usage from a LangChain AIMessage response.
 
+    Accepts either an AIMessage or the {"raw": AIMessage, ...} dict returned by
+    structured output with include_raw=True.
+
     Returns dict with input_tokens and output_tokens (0 if unavailable).
     """
+    if isinstance(response, dict):
+        response = response.get("raw")
     usage = getattr(response, "usage_metadata", None)
     if usage:
         return {
