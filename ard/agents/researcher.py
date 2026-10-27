@@ -85,7 +85,7 @@ def _generate_queries(rough_idea: str, config: dict) -> tuple[list[str], dict]:
 
     Returns (queries, usage_dict).
     """
-    model_name = config["architect_model"]
+    model_name = config["researcher_model"]
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
 
     messages = [
@@ -169,10 +169,10 @@ def _synthesize_report(raw_report: str, rough_idea: str, config: dict) -> tuple[
 
     Returns (synthesized_text, usage_dict).
     """
-    model_name = config["architect_model"]
+    model_name = config["researcher_model"]
     llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
 
-    prompt = SYNTHESIS_PROMPT.format(rough_idea=rough_idea, raw_report=raw_report)
+    prompt =SYNTHESIS_PROMPT.format(rough_idea=rough_idea, raw_report=raw_report)
 
     messages = [
         {"role": "user", "content": prompt},

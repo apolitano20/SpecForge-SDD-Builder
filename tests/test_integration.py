@@ -35,6 +35,21 @@ class TestArchitectNode:
         assert parsed["project_name"] == "todo-api"
 
     @patch("ard.agents.architect.load_guidance", return_value="")
+    @patch("ard.agents.architect.get_config", return_value={"architect_model": "gpt-6-sol"})
+    @patch("ard.agents.architect.ChatGoogleGenerativeAI")
+    @patch("ard.agents.architect.ChatOpenAI")
+    def test_gpt_model_uses_openai(self, MockOpenAI, MockGemini, _gc, _guid, base_state, valid_architect_response):
+        mock_instance = MagicMock()
+        mock_instance.invoke.return_value = _mock_llm_response(json.dumps(valid_architect_response))
+        MockOpenAI.return_value = mock_instance
+
+        result = architect_node(base_state)
+
+        MockOpenAI.assert_called_once_with(model="gpt-6-sol")
+        MockGemini.assert_not_called()
+        assert json.loads(result["current_draft"])["project_name"] == "todo-api"
+
+    @patch("ard.agents.architect.load_guidance", return_value="")
     @patch("ard.agents.architect.get_config", return_value={"architect_model": "test-model"})
     @patch("ard.agents.architect.ChatGoogleGenerativeAI")
     def test_retry_on_bad_first_response(self, MockLLM, _gc, _guid, base_state, valid_architect_response):

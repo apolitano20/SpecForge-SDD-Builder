@@ -62,7 +62,8 @@ For non-trivial projects, generating an SDD before coding saves **70-80% of impl
 ### Prerequisites
 
 - Python 3.11+
-- A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini)
+- A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini, used by the Researcher or a Gemini Architect)
+- An [OpenAI API key](https://platform.openai.com/api-keys) (for a `gpt-*` Architect)
 - An [Anthropic API key](https://console.anthropic.com/) (for Claude)
 - A [Perplexity API key](https://www.perplexity.ai/settings/api) (optional, for pre-debate research)
 
@@ -84,6 +85,7 @@ Create a `.env` file in the project root:
 
 ```
 GOOGLE_API_KEY=your-google-api-key
+OPENAI_API_KEY=your-openai-api-key
 ANTHROPIC_API_KEY=your-anthropic-api-key
 PERPLEXITY_API_KEY=your-perplexity-api-key  # Optional, for pre-debate research
 ```
@@ -162,7 +164,8 @@ Once the SDD is generated:
 Edit `ard/config.yaml` to adjust:
 
 ```yaml
-architect_model: gemini-3-flash-preview  # Architect LLM
+architect_model: gpt-6-sol           # Architect LLM ("gpt-*" uses OpenAI, otherwise Gemini)
+researcher_model: gemini-3-flash-preview  # Researcher LLM (Gemini; used when research_enabled)
 reviewer_model: claude-sonnet-4-6    # Reviewer LLM
 max_iterations: 10                   # Max debate rounds (cost guard)
 output_path: ./output/spec.md        # Output file path

@@ -37,7 +37,7 @@ class TestGenerateQueries:
         queries = ["LangGraph stable version 2025", "FastAPI async best practices"]
         mock_retry.return_value = (_mock_llm_response(json.dumps(queries)), _STUB_USAGE)
 
-        result, usage = _generate_queries("Build an AI agent", {"architect_model": "test"})
+        result, usage = _generate_queries("Build an AI agent", {"researcher_model": "test"})
 
         assert result == queries
         assert len(result) == 2
@@ -49,7 +49,7 @@ class TestGenerateQueries:
         queries = [f"query {i}" for i in range(8)]
         mock_retry.return_value = (_mock_llm_response(json.dumps(queries)), _STUB_USAGE)
 
-        result, _ = _generate_queries("idea", {"architect_model": "test"})
+        result, _ = _generate_queries("idea", {"researcher_model": "test"})
 
         assert len(result) == 5
 
@@ -59,7 +59,7 @@ class TestGenerateQueries:
         mock_retry.return_value = (_mock_llm_response('"just a string"'), _STUB_USAGE)
 
         with pytest.raises(ValueError, match="JSON array of strings"):
-            _generate_queries("idea", {"architect_model": "test"})
+            _generate_queries("idea", {"researcher_model": "test"})
 
     @patch("ard.agents.researcher.invoke_with_retry")
     @patch("ard.agents.researcher.ChatGoogleGenerativeAI")
@@ -68,7 +68,7 @@ class TestGenerateQueries:
         fenced = f"```json\n{json.dumps(queries)}\n```"
         mock_retry.return_value = (_mock_llm_response(fenced), _STUB_USAGE)
 
-        result, _ = _generate_queries("idea", {"architect_model": "test"})
+        result, _ = _generate_queries("idea", {"researcher_model": "test"})
 
         assert result == queries
 
@@ -141,7 +141,7 @@ class TestSynthesizeReport:
         synthesized = "## Key Findings\n- LangGraph 0.2.5 is stable"
         mock_retry.return_value = (_mock_llm_response(synthesized), _STUB_USAGE)
 
-        result, usage = _synthesize_report("raw report", "rough idea", {"architect_model": "test"})
+        result, usage = _synthesize_report("raw report", "rough idea", {"researcher_model": "test"})
 
         assert "Key Findings" in result
         assert usage["input_tokens"] == 100
@@ -172,7 +172,7 @@ class TestResearcherNode:
         mock_synth.return_value = ("## Synthesized findings", {**_STUB_USAGE, "agent": "researcher", "model": "test"})
 
         with patch("ard.agents.researcher.get_config", return_value={
-            "research_enabled": True, "architect_model": "test"
+            "research_enabled": True, "researcher_model": "test"
         }):
             with patch.dict("os.environ", {"PERPLEXITY_API_KEY": "test-key"}):
                 result = researcher_node(base_state)
@@ -187,7 +187,7 @@ class TestResearcherNode:
         mock_gen.side_effect = Exception("LLM error")
 
         with patch("ard.agents.researcher.get_config", return_value={
-            "research_enabled": True, "architect_model": "test"
+            "research_enabled": True, "researcher_model": "test"
         }):
             with patch.dict("os.environ", {"PERPLEXITY_API_KEY": "test-key"}):
                 result = researcher_node(base_state)
@@ -202,7 +202,7 @@ class TestResearcherNode:
         mock_exec.side_effect = Exception("API error")
 
         with patch("ard.agents.researcher.get_config", return_value={
-            "research_enabled": True, "architect_model": "test"
+            "research_enabled": True, "researcher_model": "test"
         }):
             with patch.dict("os.environ", {"PERPLEXITY_API_KEY": "test-key"}):
                 result = researcher_node(base_state)
@@ -219,7 +219,7 @@ class TestResearcherNode:
         mock_synth.side_effect = Exception("Synthesis failed")
 
         with patch("ard.agents.researcher.get_config", return_value={
-            "research_enabled": True, "architect_model": "test"
+            "research_enabled": True, "researcher_model": "test"
         }):
             with patch.dict("os.environ", {"PERPLEXITY_API_KEY": "test-key"}):
                 result = researcher_node(base_state)

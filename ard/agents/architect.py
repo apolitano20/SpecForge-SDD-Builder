@@ -11,6 +11,7 @@ import json
 import sys
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from ard.config import get_config
 from ard.state import ARDState
@@ -341,6 +342,21 @@ def _validate_response(data: dict) -> None:
                 )
 
 
+def _make_llm(model_name: str):
+    """Build the chat model for the Architect, choosing the provider from the model name.
+
+    Args:
+        model_name: Exact model string from config. Names starting with "gpt-"
+            use OpenAI; anything else uses Gemini.
+
+    Returns:
+        A LangChain chat model instance.
+    """
+    if model_name.startswith("gpt-"):
+        return ChatOpenAI(model=model_name)
+    return ChatGoogleGenerativeAI(model=model_name, temperature=0)
+
+
 def architect_node(state: ARDState) -> dict:
     """Architect node for the LangGraph StateGraph.
 
@@ -351,7 +367,7 @@ def architect_node(state: ARDState) -> dict:
     config = get_config()
     model_name = config["architect_model"]
 
-    llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    llm = _make_llm(model_name)
 
     user_prompt = _build_user_prompt(state)
 

@@ -19,6 +19,12 @@ class TestEstimateCost:
         expected = 1_000 / 1e6 * 3.00 + 500 / 1e6 * 15.00
         assert abs(cost - expected) < 1e-10
 
+    def test_single_gpt_entry(self):
+        entries = [{"model": "gpt-6-sol", "input_tokens": 1_000, "output_tokens": 500}]
+        cost = estimate_cost(entries)
+        expected = 1_000 / 1e6 * 2.00 + 500 / 1e6 * 10.00
+        assert abs(cost - expected) < 1e-10
+
     def test_unknown_model_ignored(self):
         entries = [{"model": "unknown-model", "input_tokens": 100, "output_tokens": 50}]
         assert estimate_cost(entries) == 0.0
