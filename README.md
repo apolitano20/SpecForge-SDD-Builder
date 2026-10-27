@@ -62,7 +62,7 @@ For non-trivial projects, generating an SDD before coding saves **70-80% of impl
 ### Prerequisites
 
 - Python 3.11+
-- A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini, used by the Researcher)
+- A [Google AI API key](https://aistudio.google.com/apikey) (for Gemini, used by the Researcher; only needed when pre-debate research is enabled)
 - An [OpenAI API key](https://platform.openai.com/api-keys) (for the Architect)
 - An [Anthropic API key](https://console.anthropic.com/) (for Claude)
 - A [Perplexity API key](https://www.perplexity.ai/settings/api) (optional, for pre-debate research)
@@ -221,6 +221,7 @@ tests/
   test_quality_metrics.py
   test_researcher.py
   test_reviewer_validation.py
+  test_schemas.py
   test_thorough_mode.py
   test_token_usage.py
   test_validator.py
@@ -240,11 +241,11 @@ Comprehensive test suite covering validation logic, graph routing, HITL helpers,
 
 The generated `spec.md` includes:
 
-- **Project Overview** — the original rough idea for context
+- **Project Overview** — the Architect's 2-3 sentence project summary (falls back to your original rough idea)
 - **Context** — system boundary, external actors, and information flows (IEEE-1016 inspired)
 - **Tech Stack** — specific versions and frameworks
 - **Key Design Decisions** — architectural choices with rationale
-- **Directory Structure** — full project tree with entry points
+- **Directory Structure** — high-level project layout with key files
 - **Components** — each with type, purpose, file path, and dependencies
 - **Data Models** — purpose plus key design-choice fields (foreign keys, enums, non-obvious types); the coding agent infers standard fields
 - **API Endpoints** — method, path, and a description of which component handles each route
