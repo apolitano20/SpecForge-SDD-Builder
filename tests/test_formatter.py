@@ -35,24 +35,6 @@ class TestRenderMarkdown:
         assert "- user_id: FK:User.id" in md
         assert "- status: enum(pending, done)" in md
 
-    def test_data_models_legacy_fields_table(self):
-        """Legacy format with fields list renders as a table."""
-        data = {
-            "data_models": [
-                {
-                    "name": "Task",
-                    "fields": [
-                        {"name": "id", "type": "int", "description": "Primary key"},
-                        {"name": "title", "type": "str", "description": "Task title"},
-                    ],
-                }
-            ]
-        }
-        md = _render_markdown(data)
-        assert "### Task" in md
-        assert "| `id` | `int` |" in md
-        assert "| `title` | `str` |" in md
-
     def test_api_endpoints_summary_table(self, valid_architect_response):
         md = _render_markdown(valid_architect_response)
         assert "| `GET` | `/api/tasks` |" in md
@@ -61,12 +43,6 @@ class TestRenderMarkdown:
         md = _render_markdown(valid_architect_response)
         assert "### `GET /api/tasks`" not in md
         assert md.count("List all tasks") == 1
-
-    def test_api_endpoint_details_when_extra_info(self, valid_architect_response):
-        valid_architect_response["api_endpoints"][0]["errors"] = "404 if not found"
-        md = _render_markdown(valid_architect_response)
-        assert "### `GET /api/tasks`" in md
-        assert "**Errors:** 404 if not found" in md
 
     def test_key_decisions(self, valid_architect_response):
         md = _render_markdown(valid_architect_response)
@@ -106,21 +82,6 @@ class TestRenderMarkdown:
         md = _render_markdown(valid_architect_response)
         assert "design_rationale" not in md
         assert "Initial draft addressing" not in md
-
-    def test_query_params_rendered_when_present(self):
-        """Query params render when present (e.g. from legacy or detailed endpoints)."""
-        data = {
-            "api_endpoints": [
-                {
-                    "method": "GET",
-                    "path": "/api/tasks",
-                    "description": "List tasks",
-                    "query_params": '{"status": "str"}',
-                }
-            ]
-        }
-        md = _render_markdown(data)
-        assert "**Query parameters:**" in md
 
     def test_component_without_file_path_omits_line(self):
         data = {

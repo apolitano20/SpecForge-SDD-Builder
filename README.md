@@ -166,7 +166,7 @@ Edit `ard/config.yaml` to adjust:
 ```yaml
 architect_model: gpt-6-sol           # Architect LLM (OpenAI; strict structured output)
 researcher_model: gemini-3-flash-preview  # Researcher LLM (Gemini; used when research_enabled)
-reviewer_model: claude-sonnet-4-6    # Reviewer LLM
+reviewer_model: claude-sonnet-5-5    # Reviewer LLM
 max_iterations: 10                   # Max debate rounds (cost guard)
 output_path: ./output/spec.md        # Output file path
 guidance_enabled: true               # Inject architectural guidelines into agent prompts

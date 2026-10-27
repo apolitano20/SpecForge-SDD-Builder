@@ -113,7 +113,7 @@ def valid_reviewer_response_needs_revision():
 def mock_config():
     """Patch the config singleton with test-friendly values."""
     test_config = {
-        "architect_model": "gemini-2.0-flash",
+        "architect_model": "gpt-6-sol",
         "researcher_model": "gemini-2.0-flash",
         "reviewer_model": "claude-sonnet-5-5",
         "max_iterations": 15,

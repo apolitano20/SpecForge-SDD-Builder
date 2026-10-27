@@ -124,7 +124,6 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
             model_name = model.get("name", "Unknown")
             purpose = model.get("purpose", "")
             key_fields = model.get("key_fields", [])
-            fields = model.get("fields", [])  # legacy format
 
             lines.append(f"### {model_name}")
             lines.append("")
@@ -136,16 +135,6 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
                 lines.append("")
                 for kf in key_fields:
                     lines.append(f"- {kf}")
-                lines.append("")
-            elif fields:
-                # Legacy format fallback (full field table)
-                lines.append("| Field | Type | Description |")
-                lines.append("|-------|------|-------------|")
-                for field in fields:
-                    fname = field.get("name", "")
-                    ftype = field.get("type", "")
-                    fdesc = field.get("description", "")
-                    lines.append(f"| `{fname}` | `{ftype}` | {fdesc} |")
                 lines.append("")
 
     # API Endpoints
@@ -161,43 +150,6 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
             desc = ep.get("description", "")
             lines.append(f"| `{method}` | `{path}` | {desc} |")
         lines.append("")
-
-        # Detailed endpoint sections — only for endpoints with extra detail, since the
-        # table above already carries method, path, and description.
-        for ep in api_endpoints:
-            method = ep.get("method", "")
-            path = ep.get("path", "")
-            desc = ep.get("description", "")
-            req = ep.get("request_body")
-            query_params = ep.get("query_params")
-            resp = ep.get("response", "")
-            errors = ep.get("errors", "")
-
-            if not (req or query_params or resp or errors):
-                continue
-
-            lines.append(f"### `{method} {path}`")
-            lines.append("")
-            lines.append(desc)
-            lines.append("")
-            if query_params:
-                lines.append("**Query parameters:**")
-                lines.append("")
-                lines.append(f"```json\n{query_params}\n```")
-                lines.append("")
-            if req:
-                lines.append("**Request body:**")
-                lines.append("")
-                lines.append(f"```json\n{req}\n```")
-                lines.append("")
-            if resp:
-                lines.append("**Response:**")
-                lines.append("")
-                lines.append(f"```\n{resp}\n```")
-                lines.append("")
-            if errors:
-                lines.append(f"**Errors:** {errors}")
-                lines.append("")
 
     # Glossary
     glossary = data.get("glossary", [])

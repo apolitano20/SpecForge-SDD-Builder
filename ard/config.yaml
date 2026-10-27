@@ -1,4 +1,4 @@
-architect_model: gpt-6-sol              # Exact model string for Architect Agent ("gpt-*" uses OpenAI, otherwise Gemini)
+architect_model: gpt-6-sol              # Exact OpenAI model string for Architect Agent
 researcher_model: gemini-3-flash-preview  # Exact model string for Researcher query generation/synthesis (Gemini)
 reviewer_model: claude-sonnet-5-5       # Exact model string for Reviewer Agent
 max_iterations: 10                       # Loop ceiling (cost guard)
