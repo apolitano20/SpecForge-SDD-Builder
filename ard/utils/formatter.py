@@ -162,7 +162,8 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
             lines.append(f"| `{method}` | `{path}` | {desc} |")
         lines.append("")
 
-        # Detailed endpoint descriptions
+        # Detailed endpoint sections — only for endpoints with extra detail, since the
+        # table above already carries method, path, and description.
         for ep in api_endpoints:
             method = ep.get("method", "")
             path = ep.get("path", "")
@@ -171,6 +172,9 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
             query_params = ep.get("query_params")
             resp = ep.get("response", "")
             errors = ep.get("errors", "")
+
+            if not (req or query_params or resp or errors):
+                continue
 
             lines.append(f"### `{method} {path}`")
             lines.append("")
@@ -212,6 +216,44 @@ def _render_markdown(data: dict, rough_idea: str = "") -> str:
     # user_clarifications are appended separately by write_spec if present
 
     return "\n".join(lines)
+
+
+def _nest_headings(text: str, top_level: int) -> str:
+    """Shift Markdown headings so the shallowest one sits at `top_level`.
+
+    Lines inside fenced code blocks are left alone.
+
+    Args:
+        text: Markdown text whose headings should be nested under a parent section.
+        top_level: Heading level (1-6) the shallowest heading should end up at.
+
+    Returns:
+        The text with every heading shifted by the same amount, capped at level 6.
+    """
+    in_fence = False
+    levels = []
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and line.startswith("#"):
+            hashes = len(line) - len(line.lstrip("#"))
+            if 1 <= hashes <= 6 and line[hashes:hashes + 1] == " ":
+                levels.append(hashes)
+    if not levels:
+        return text
+
+    shift = top_level - min(levels)
+    out = []
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and line.startswith("#"):
+            hashes = len(line) - len(line.lstrip("#"))
+            if 1 <= hashes <= 6 and line[hashes:hashes + 1] == " ":
+                line = "#" * min(6, hashes + shift) + line[hashes:]
+        out.append(line)
+    return "\n".join(out)
 
 
 def write_spec(state: ARDState) -> Path:
@@ -262,9 +304,11 @@ def write_spec(state: ARDState) -> Path:
         content += "\n---\n\n## Research Grounding\n\n"
         content += (
             "The following research findings were used to inform stack decisions "
-            "in this document. Sources are grounded in recent web searches.\n\n"
+            "in this document. Sources are grounded in recent web searches. This is "
+            "background only: where it differs from the design above, the design "
+            "above takes precedence.\n\n"
         )
-        content += research_report + "\n"
+        content += _nest_headings(research_report, top_level=3) + "\n"
 
     # Append minor notes if the design was verified with minor suggestions
     if state["status"] == "verified" and state["challenge_history"]:

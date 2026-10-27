@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ard.utils.formatter import _render_markdown, write_spec
+from ard.utils.formatter import _nest_headings, _render_markdown, write_spec
 
 
 # --- _render_markdown (pure function) ---
@@ -57,10 +57,16 @@ class TestRenderMarkdown:
         md = _render_markdown(valid_architect_response)
         assert "| `GET` | `/api/tasks` |" in md
 
-    def test_api_endpoint_details(self, valid_architect_response):
+    def test_description_only_endpoint_not_repeated(self, valid_architect_response):
+        md = _render_markdown(valid_architect_response)
+        assert "### `GET /api/tasks`" not in md
+        assert md.count("List all tasks") == 1
+
+    def test_api_endpoint_details_when_extra_info(self, valid_architect_response):
+        valid_architect_response["api_endpoints"][0]["errors"] = "404 if not found"
         md = _render_markdown(valid_architect_response)
         assert "### `GET /api/tasks`" in md
-        assert "List all tasks" in md
+        assert "**Errors:** 404 if not found" in md
 
     def test_key_decisions(self, valid_architect_response):
         md = _render_markdown(valid_architect_response)
@@ -215,6 +221,27 @@ class TestRenderMarkdown:
         assert "## Glossary" not in md
 
 
+# --- _nest_headings ---
+
+class TestNestHeadings:
+    def test_shifts_shallowest_heading_to_top_level(self):
+        out = _nest_headings("## A\n\ntext\n\n### B", top_level=3)
+        assert out == "### A\n\ntext\n\n#### B"
+
+    def test_h1_is_pushed_below_parent(self):
+        assert _nest_headings("# Title\n## Sub", top_level=3) == "### Title\n#### Sub"
+
+    def test_caps_at_level_six(self):
+        assert _nest_headings("# A\n###### B", top_level=3) == "### A\n###### B"
+
+    def test_code_fence_lines_untouched(self):
+        text = "## A\n```\n# not a heading\n```\n"
+        assert "# not a heading" in _nest_headings(text, top_level=3).splitlines()
+
+    def test_no_headings_returns_text_unchanged(self):
+        assert _nest_headings("plain *text*", top_level=3) == "plain *text*"
+
+
 # --- write_spec (file I/O) ---
 
 class TestWriteSpec:
@@ -238,6 +265,21 @@ class TestWriteSpec:
         state = self._make_state(tmp_path, valid_architect_response)
         result = write_spec(state)
         assert result.exists()
+
+    @patch("ard.utils.formatter.get_config")
+    def test_research_section_is_nested_and_marked_background(
+        self, mock_gc, tmp_path, valid_architect_response
+    ):
+        output_file = tmp_path / "spec.md"
+        mock_gc.return_value = {"output_path": str(output_file)}
+        state = self._make_state(tmp_path, valid_architect_response)
+        state["research_report"] = "## Database\n\n### Storage\n\nUse pgvector."
+        content = write_spec(state).read_text(encoding="utf-8")
+        assert "## Research Grounding" in content
+        assert "the design above takes precedence" in content
+        assert "\n### Database\n" in content
+        assert "\n#### Storage\n" in content
+        assert "\n## Database\n" not in content
 
     @patch("ard.utils.formatter.get_config")
     def test_content_is_markdown(self, mock_gc, tmp_path, valid_architect_response):
